@@ -69,6 +69,38 @@ test("schema has all expected top-level keys", () => {
   assert.equal(SCHEMA.sector.tailwind, "boolean  // is this sector a structural tailwind?");
 });
 
+test("schema has the four modules", () => {
+  for (const k of ["hiddenTrigger", "newOrders", "valuation", "multibaggerCheck"]) {
+    assert.ok(Object.keys(SCHEMA).includes(k), "schema missing module " + k);
+  }
+  const noVersion = ["triggerFound", "verdict", "hiddenLinkage", "probability", "confirmedStatus"];
+  for (const k of noVersion) {
+    assert.ok(k in SCHEMA.hiddenTrigger, "hiddenTrigger missing " + k);
+  }
+  assert.ok(Array.isArray(SCHEMA.newOrders.orders));
+  assert.equal(
+    SCHEMA.newOrders.orders[0].status,
+    "\"Confirmed\" | \"LOA\" | \"Work Order\" | \"Tender Win\" | \"MoU\" | \"Bid\""
+  );
+  for (const k of ["bearValue", "baseFairValue", "bullValue", "valuationMethod", "verdict"]) {
+    assert.ok(k in SCHEMA.valuation, "valuation missing " + k);
+  }
+  for (const k of ["overallScore", "potential3x", "potential5x", "bearCase", "verdict"]) {
+    assert.ok(k in SCHEMA.multibaggerCheck, "multibaggerCheck missing " + k);
+  }
+});
+
+test("buildPrompt instructs the four modules", () => {
+  const p = buildPrompt("FONEBOX", "NSE");
+  assert.ok(/MODULES/.test(p));
+  assert.ok(/hiddenTrigger/.test(p));
+  assert.ok(/newOrders/.test(p));
+  assert.ok(/multibaggerCheck/.test(p));
+  assert.ok(/NO_CONFIRMED_TRIGGER/.test(p));
+  assert.ok(/NO VERIFIED ORDER/.test(p));
+  assert.ok(/never invent/.test(p));
+});
+
 test("schema has all expected metric keys", () => {
   const keys = Object.keys(SCHEMA.metrics);
   for (const k of [
