@@ -315,37 +315,13 @@ async function staticQuarterly(slug) {
   return null;
 }
 
-async function tabQuarterly(slug) {
-  let tab = null;
-  const tries = [
-    "https://www.screener.in/company/" + encodeURIComponent(slug || "") + "/consolidated/#quarters",
-    "https://www.screener.in/company/" + encodeURIComponent(slug || "") + "/#quarters"
-  ];
-  for (const url of tries) {
-    try {
-      tab = await chrome.tabs.create({ url: url, active: false });
-      try {
-        await chrome.tabs.update(tab.id, { muted: true });
-      } catch (e2) {}
-      await waitForTabComplete(tab.id);
-      const q = await scrapeQuarterlyFromTab(tab.id);
-      if (q && q.columns && q.columns.length) return q;
-    } catch (e) {
-      /* try next */
-    } finally {
-      if (tab) {
-        try {
-          await chrome.tabs.remove(tab.id);
-        } catch (e3) {}
-        tab = null;
-      }
-    }
-  }
-  return null;
-}
-
 async function acquireQuarterly(slug, sender) {
-  // 1) If research started on a screener.in company page, read the live DOM.
+  // We deliberately avoid opening dedicated screener tabs here: an injected
+  // overlay on such a tab auto-researches the stock and keeps opening more
+  // tabs (a loop that also trips screener's rate limits). Only two sources:
+  //  - the live DOM of the page the user is already on (if it's screener)
+  //  - static fetches of the consolidated + standalone pages (half-yearly
+  //    reporters like FONEBOX only publish their table on standalone).
   let host = "";
   try {
     if (sender.tab && sender.tab.url) host = new URL(sender.tab.url).hostname;
@@ -354,13 +330,7 @@ async function acquireQuarterly(slug, sender) {
     const live = await scrapeQuarterlyFromTab(sender.tab.id);
     if (live && live.columns && live.columns.length) return live;
   }
-
-  // 2) Static fetch of both consolidated + standalone pages (cheap + reliable).
-  const stat = await staticQuarterly(slug);
-  if (stat && stat.columns && stat.columns.length) return stat;
-
-  // 3) Tables hydrating client-side: open an inactive tab and poll the DOM.
-  return tabQuarterly(slug);
+  return staticQuarterly(slug);
 }
 
 async function getQuarterly(slug, sender) {

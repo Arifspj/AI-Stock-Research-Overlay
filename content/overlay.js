@@ -16,6 +16,12 @@
 
   if (!EXTRACT || !JSONX) return;
 
+  // Tabs the background opens with ?sr=1 are headless scraping pages; they must
+  // NOT spawn their own research (that used to loop: overlay -> more tabs -> ...).
+  try {
+    if (new URL(location.href).searchParams.get("sr") === "1") return;
+  } catch (e) {}
+
   const CSS = `
 :host { all: initial; }
 * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif; }
