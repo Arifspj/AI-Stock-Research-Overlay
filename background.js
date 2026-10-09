@@ -288,37 +288,73 @@ async function waitForTabComplete(tabId) {
   return false;
 }
 
+// Some companies (e.g. BSE SME / half-yearly reporters) expose their
+// "Quarterly Results" (half-yearly) only on the standalone page, while the
+// consolidated page renders an empty table. Drag both pages through the
+// static parser so we always pick up whichever one actually has columns.
+async function staticQuarterly(slug) {
+  const enc = encodeURIComponent(slug || "");
+  const urls = [
+    "https://www.screener.in/company/" + enc + "/consolidated/",
+    "https://www.screener.in/company/" + enc + "/"
+  ];
+  for (const url of urls) {
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const parsed = SCREENER.parseScreener(html);
+    if (parsed && parsed.quarterly && parsed.quarterly.columns && parsed.quarterly.columns.length) {
+      return parsed.quarterly;
+    }
+  }
+  return null;
+}
+
+async function tabQuarterly(slug) {
+  let tab = null;
+  const tries = [
+    "https://www.screener.in/company/" + encodeURIComponent(slug || "") + "/consolidated/#quarters",
+    "https://www.screener.in/company/" + encodeURIComponent(slug || "") + "/#quarters"
+  ];
+  for (const url of tries) {
+    try {
+      tab = await chrome.tabs.create({ url: url, active: false });
+      try {
+        await chrome.tabs.update(tab.id, { muted: true });
+      } catch (e2) {}
+      await waitForTabComplete(tab.id);
+      const q = await scrapeQuarterlyFromTab(tab.id);
+      if (q && q.columns && q.columns.length) return q;
+    } catch (e) {
+      /* try next */
+    } finally {
+      if (tab) {
+        try {
+          await chrome.tabs.remove(tab.id);
+        } catch (e3) {}
+        tab = null;
+      }
+    }
+  }
+  return null;
+}
+
 async function acquireQuarterly(slug, sender) {
+  // 1) If research started on a screener.in company page, read the live DOM.
   let host = "";
   try {
     if (sender.tab && sender.tab.url) host = new URL(sender.tab.url).hostname;
   } catch (e) {}
   if (host === "www.screener.in" || host === "screener.in") {
-    return await scrapeQuarterlyFromTab(sender.tab.id);
+    const live = await scrapeQuarterlyFromTab(sender.tab.id);
+    if (live && live.columns && live.columns.length) return live;
   }
-  let tab = null;
-  try {
-    tab = await chrome.tabs.create({
-      url:
-        "https://www.screener.in/company/" +
-        encodeURIComponent(slug || "") +
-        "/consolidated/#quarters",
-      active: false
-    });
-    try {
-      await chrome.tabs.update(tab.id, { muted: true });
-    } catch (e2) {}
-    await waitForTabComplete(tab.id);
-    return await scrapeQuarterlyFromTab(tab.id);
-  } catch (e) {
-    return null;
-  } finally {
-    if (tab) {
-      try {
-        await chrome.tabs.remove(tab.id);
-      } catch (e3) {}
-    }
-  }
+
+  // 2) Static fetch of both consolidated + standalone pages (cheap + reliable).
+  const stat = await staticQuarterly(slug);
+  if (stat && stat.columns && stat.columns.length) return stat;
+
+  // 3) Tables hydrating client-side: open an inactive tab and poll the DOM.
+  return tabQuarterly(slug);
 }
 
 // Force the scraped ground-truth numbers onto the model's payload.
