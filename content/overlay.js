@@ -513,7 +513,10 @@
   }
 
   function openScreener() {
-    const sym = (state.payload && state.payload.symbol) || info.symbol;
+    const sym =
+      (state.payload && state.payload._scrSlug) ||
+      (state.payload && state.payload.symbol) ||
+      info.symbol;
     openUrl(screenerUrl(sym));
   }
 

@@ -130,29 +130,66 @@ function friendlyError(e) {
   return msg;
 }
 
-async function fetchScreener(symbol) {
-  if (!SCREENER || !symbol) return null;
+async function fetchHtml(url) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    const res = await fetch(url, { credentials: "include", signal: controller.signal });
+    clearTimeout(timer);
+    if (!res || !res.ok) return null;
+    return await res.text();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function parseScreenerUrl(slug) {
+  const enc = encodeURIComponent(slug || "");
   const urls = [
-    "https://www.screener.in/company/" + encodeURIComponent(symbol) + "/consolidated/",
-    "https://www.screener.in/company/" + encodeURIComponent(symbol) + "/"
+    "https://www.screener.in/company/" + enc + "/consolidated/",
+    "https://www.screener.in/company/" + enc + "/"
   ];
-  for (let i = 0; i < urls.length; i++) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 9000);
-      const res = await fetch(urls[i], { credentials: "include", signal: controller.signal });
-      clearTimeout(timer);
-      if (!res || !res.ok) continue;
-      const html = await res.text();
-      const parsed = SCREENER.parseScreener(html);
-      if (parsed && (parsed.quarterly || (parsed.ratios && parsed.ratios.ltp !== null))) {
-        return parsed;
-      }
-    } catch (e) {
-      /* try next url */
+  for (const url of urls) {
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const parsed = SCREENER.parseScreener(html);
+    if (parsed && (parsed.quarterly || (parsed.ratios && parsed.ratios.ltp !== null))) {
+      return parsed;
     }
   }
   return null;
+}
+
+// Resolve the canonical screener.in company slug (from a site symbol like an
+// ISIN/script-code or short name) using screener's lightweight search API.
+async function resolveScreenerSlug(symbol) {
+  if (!symbol) return null;
+  const html = await fetchHtml(
+    "https://www.screener.in/api/company/search/?q=" + encodeURIComponent(String(symbol))
+  );
+  if (!html) return null;
+  try {
+    const list = JSON.parse(html);
+    if (Array.isArray(list) && list.length) {
+      const first = list[0] && list[0].url ? String(list[0].url) : "";
+      const m = first.match(/\/company\/([^/]+)\/?$/);
+      if (m) return decodeURIComponent(m[1]);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return null;
+}
+
+async function fetchScreener(symbol) {
+  if (!SCREENER || !symbol) return null;
+  // Screener occasionally throttles the first request; retry once.
+  let parsed = await parseScreenerUrl(symbol);
+  if (!parsed) {
+    await sleep(700);
+    parsed = await parseScreenerUrl(symbol);
+  }
+  return parsed;
 }
 
 function buildVerified(parsed, quarterly) {
@@ -251,7 +288,7 @@ async function waitForTabComplete(tabId) {
   return false;
 }
 
-async function acquireQuarterly(msg, sender) {
+async function acquireQuarterly(slug, sender) {
   let host = "";
   try {
     if (sender.tab && sender.tab.url) host = new URL(sender.tab.url).hostname;
@@ -264,7 +301,7 @@ async function acquireQuarterly(msg, sender) {
     tab = await chrome.tabs.create({
       url:
         "https://www.screener.in/company/" +
-        encodeURIComponent(msg.symbol || "") +
+        encodeURIComponent(slug || "") +
         "/consolidated/#quarters",
       active: false
     });
@@ -333,16 +370,26 @@ async function onResearchStart(msg, sender) {
       message: "Fetching data from screener.in\u2026"
     });
 
+    // Resolve the canonical screener slug so both the ratio scrape and the
+    // quarterly tab use a URL that actually exists on screener.in.
+    let scrSlug = msg.symbol || null;
+    try {
+      const resolved = await resolveScreenerSlug(msg.symbol);
+      if (resolved) scrSlug = resolved;
+    } catch (e) {
+      /* fall back to the raw symbol */
+    }
+
     let parsed = null;
     try {
-      parsed = await fetchScreener(msg.symbol);
+      parsed = await fetchScreener(scrSlug);
     } catch (e) {
       parsed = null;
     }
 
     let quarterly = null;
     try {
-      quarterly = await acquireQuarterly(msg, sender);
+      quarterly = await acquireQuarterly(scrSlug, sender);
     } catch (e) {
       quarterly = null;
     }
@@ -352,6 +399,7 @@ async function onResearchStart(msg, sender) {
     const pending = await getPending(requestId);
     if (pending) {
       pending.verified = verified;
+      pending.slug = scrSlug;
       await setPending(requestId, pending);
     }
 
@@ -417,6 +465,11 @@ async function onChatGptResult(msg) {
   } else {
     if (msg.payload && pending.verified) {
       applyVerified(msg.payload, pending.verified);
+    }
+    if (msg.payload && pending.slug) {
+      // Remember the canonical screener slug so the overlay's link button
+      // opens the right page even when the site symbol is an ISIN/script code.
+      msg.payload._scrSlug = pending.slug;
     }
     await toOverlay(pending.tabId, {
       type: "RESEARCH_RESULT",

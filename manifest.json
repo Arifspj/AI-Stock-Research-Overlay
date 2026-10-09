@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Stock Research Overlay",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Extracts the stock from supported sites, researches it on ChatGPT, and renders a clean metrics overlay.",
   "permissions": ["storage", "tabs", "scripting"],
   "host_permissions": [
