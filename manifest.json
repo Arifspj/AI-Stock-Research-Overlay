@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "AI Stock Research Overlay",
+  "version": "1.0.5",
+  "description": "Extracts the stock from supported sites, researches it on ChatGPT, and renders a clean metrics overlay.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": [
+    "https://kite.zerodha.com/*",
+    "https://www.screener.in/*",
+    "https://screener.in/*",
+    "https://chartink.com/*",
+    "https://www.tradingview.com/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "AI Stock Research",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://kite.zerodha.com/*",
+        "https://www.screener.in/*",
+        "https://screener.in/*",
+        "https://chartink.com/*",
+        "https://www.tradingview.com/*"
+      ],
+      "js": ["lib/extract.js", "lib/json.js", "lib/prompt.js", "lib/mock.js", "content/overlay.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": ["lib/json.js", "content/chatgpt.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "ai-stock-research",
+  "version": "1.0.5",
+  "private": true,
+  "description": "Chrome extension: research a stock on ChatGPT and render a metrics overlay on Zerodha, Screener, Chartink and TradingView.",
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}
