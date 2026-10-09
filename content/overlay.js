@@ -48,7 +48,7 @@
 .iconbtn .ic { width: 15px; height: 15px; }
 .iconbtn.openlink { color: #7fb2ff; }
 .iconbtn.openlink:hover { color: #bcd9ff; background: rgba(127,178,255,.12); }
-.srcicon { background: transparent; border: none; color: #6f86ff; cursor: pointer; padding: 5px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.srcicon { background: transparent; border: none; color: #6f86ff; cursor: pointer; padding: 5px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; vertical-align: middle; }
 .srcicon .ic { width: 13px; height: 13px; }
 .srcicon:hover { background: rgba(124,92,255,.2); color: #cdc0ff; }
 .body { padding: 14px; overflow-y: auto; }
@@ -201,6 +201,20 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  // Escapes text but turns bare http(s) URLs into compact link-icon buttons.
+  function richHtml(s) {
+    if (!s) return "";
+    const esc = (x) => escapeHtml(x);
+    const parts = String(s).split(/(https?:\/\/[^\s<>"']+)/g);
+    let out = "";
+    for (const p of parts) {
+      out += /^https?:\/\//i.test(p)
+        ? `<button class="srcicon" data-url="${esc(p)}" title="${esc(p)}">${LINK_SVG}</button>`
+        : esc(p);
+    }
+    return out;
   }
 
   function fmtNum(n, digits) {
@@ -375,15 +389,15 @@
         : "";
 
     const pointItem = (li) =>
-      `<div class="newitem"><div class="txt"><div class="t">${escapeHtml(li && li.point ? li.point : "")}</div></div>${srcIcon(li && li.source)}</div>`;
+      `<div class="newitem"><div class="txt"><div class="t">${richHtml(li && li.point ? li.point : "")}</div></div>${srcIcon(li && li.source)}</div>`;
     const orderItem = (li) => {
       const parts = [];
       if (li && li.value) parts.push(String(li.value));
       if (li && li.date) parts.push(String(li.date));
-      return `<div class="newitem"><div class="txt"><div class="t">${escapeHtml(li && li.desc ? li.desc : "")}</div>${parts.length ? `<div class="sub">${escapeHtml(parts.join(" \u00b7 "))}</div>` : ""}</div>${srcIcon(li && li.source)}</div>`;
+      return `<div class="newitem"><div class="txt"><div class="t">${richHtml(li && li.desc ? li.desc : "")}</div>${parts.length ? `<div class="sub">${richHtml(parts.join(" \u00b7 "))}</div>` : ""}</div>${srcIcon(li && li.source)}</div>`;
     };
     const compItem = (li) =>
-      `<div class="newitem"><div class="txt"><div class="t">${escapeHtml(li && li.name ? li.name : "")}</div><div>${escapeHtml(li && li.relation ? li.relation : "")}</div></div>${srcIcon(li && li.source)}</div>`;
+      `<div class="newitem"><div class="txt"><div class="t">${richHtml(li && li.name ? li.name : "")}</div><div>${richHtml(li && li.relation ? li.relation : "")}</div></div>${srcIcon(li && li.source)}</div>`;
 
     const sectionList = (title, arr, fn) =>
       arr && arr.length
@@ -391,11 +405,11 @@
         : "";
 
     const summary = payload.summary
-      ? `<div class="section"><div class="lead">${escapeHtml(payload.summary)}</div></div>`
+      ? `<div class="section"><div class="lead">${richHtml(payload.summary)}</div></div>`
       : "";
     const sector =
       payload.sector && payload.sector.name
-        ? `<div class="section"><div class="section-title">Sector</div><div><div class="sectorrow"><span>${escapeHtml(payload.sector.name)}</span><span class="tailwind ${payload.sector.tailwind ? "yes" : "no"}">${payload.sector.tailwind ? "Tailwind" : "No tailwind"}</span></div>${payload.sector.reason ? `<div class="muted" style="margin-top:6px">${escapeHtml(payload.sector.reason)}</div>` : ""}</div></div>`
+        ? `<div class="section"><div class="section-title">Sector</div><div><div class="sectorrow"><span>${escapeHtml(payload.sector.name)}</span><span class="tailwind ${payload.sector.tailwind ? "yes" : "no"}">${payload.sector.tailwind ? "Tailwind" : "No tailwind"}</span></div>${payload.sector.reason ? `<div class="muted" style="margin-top:6px">${richHtml(payload.sector.reason)}</div>` : ""}</div></div>`
         : "";
 
     return `
