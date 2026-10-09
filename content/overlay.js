@@ -531,6 +531,7 @@
 
   // ---- research flow ----------------------------------------------------
   function runResearch(useDemo) {
+    if (state.status === "loading") return; // avoid duplicate runs / tab spam
     toggle(true);
     state.fromCache = false;
     state.cachedAt = null;

@@ -16,6 +16,12 @@ const CHATGPT_URLS = ["https://chatgpt.com/*", "https://chat.openai.com/*"];
 const PENDING_PREFIX = "pending:";
 const CHATGPT_TAB_KEY = "chatgptTabId";
 
+// Short-lived in-worker stores so repeated research runs for the same stock
+// reuse scraped data instead of opening fresh screener tabs each time.
+const QUARTERLY_TTL = 15 * 60 * 1000; // 15 min
+const quarterlyCache = new Map(); // SLUG -> { ts, quarterly }
+const researchActive = new Map(); // tabId -> requestId (dedupe)
+
 function uid() {
   if (self.crypto && self.crypto.randomUUID) return self.crypto.randomUUID();
   return "req-" + Date.now() + "-" + Math.random().toString(16).slice(2);
@@ -357,6 +363,17 @@ async function acquireQuarterly(slug, sender) {
   return tabQuarterly(slug);
 }
 
+async function getQuarterly(slug, sender) {
+  const key = String(slug || "").toUpperCase();
+  const hit = quarterlyCache.get(key);
+  if (hit && Date.now() - hit.ts < QUARTERLY_TTL) return hit.quarterly;
+  const q = await acquireQuarterly(slug, sender);
+  if (q && q.columns && q.columns.length) {
+    quarterlyCache.set(key, { ts: Date.now(), quarterly: q });
+  }
+  return q;
+}
+
 // Force the scraped ground-truth numbers onto the model's payload.
 function applyVerified(payload, v) {
   if (!payload || !v) return payload;
@@ -389,6 +406,13 @@ async function onResearchStart(msg, sender) {
   const requestId = msg.requestId || uid();
   const tabId = sender.tab && sender.tab.id;
   if (tabId === undefined) return;
+
+  // Dedupe: if this tab already has an active research, ignore the duplicate
+  // so we never spawn a second wave of screener tabs.
+  if (researchActive.has(tabId)) {
+    return;
+  }
+  researchActive.set(tabId, requestId);
 
   await setPending(requestId, {
     tabId: tabId,
@@ -425,7 +449,7 @@ async function onResearchStart(msg, sender) {
 
     let quarterly = null;
     try {
-      quarterly = await acquireQuarterly(scrSlug, sender);
+      quarterly = await getQuarterly(scrSlug, sender);
     } catch (e) {
       quarterly = null;
     }
@@ -475,6 +499,8 @@ async function onResearchStart(msg, sender) {
       requestId: requestId,
       error: friendlyError(e)
     });
+  } finally {
+    researchActive.delete(tabId);
   }
 }
 
