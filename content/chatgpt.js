@@ -42,6 +42,22 @@
       'button[aria-label="Stop generating"]',
       'button[aria-label="Stop"]'
     ],
+    attach: [
+      '[data-testid="composer-attach"]',
+      'button[data-testid*="attach"]',
+      'button[aria-label*="Attach"]',
+      'button[aria-label*="Upload"]'
+    ],
+    fileInput: [
+      'input[type="file"][data-testid="file-upload-input"]',
+      'input[type="file"]'
+    ],
+    attachment: [
+      '[data-testid="file-preview"]',
+      '[class*="attachments"]',
+      '[class*="file-preview"]',
+      '[data-testid*="attachment"]'
+    ],
     assistant: [
       '[data-message-author-role="assistant"]',
       'div[data-message-author-role="assistant"]',
@@ -127,10 +143,16 @@
     }
   }
 
+  function composerText(el) {
+    return el.value !== undefined && el.tagName === "TEXTAREA" ? el.value : el.innerText || el.textContent || "";
+  }
+
+  // Returns true when the text verifiably landed inside the composer.
+  // execCommand("insertText") and synthetic paste both silently fail on
+  // ChatGPT's ProseMirror for very long strings, so the caller gets a signal.
   function setComposerText(el, text) {
     el.focus();
 
-    // Replace any existing selection/content, then insert as a single text run.
     try {
       const sel = window.getSelection();
       const range = document.createRange();
@@ -146,10 +168,8 @@
       inserted = false;
     }
 
-    const readText = () => (el.value !== undefined && el.tagName === "TEXTAREA" ? el.value : el.innerText || el.textContent || "");
-    const need = Math.min(12, String(text).trim().length);
-
-    if (!inserted || readText().trim().length < need) {
+    const need = Math.min(80, String(text).trim().length);
+    if (composerText(el).trim().length < need) {
       try {
         const dt = new DataTransfer();
         dt.setData("text/plain", text);
@@ -157,7 +177,7 @@
       } catch (e) {}
     }
 
-    if (readText().trim().length < need) {
+    if (composerText(el).trim().length < need) {
       if (el.tagName === "TEXTAREA") {
         el.value = text;
       } else {
@@ -167,6 +187,39 @@
         el.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
       } catch (e) {}
     }
+
+    return composerText(el).trim().length >= need;
+  }
+
+  // Fallback for very long prompts: attach the full prompt as a .txt file
+  // (ChatGPT's own attach flow) instead of pasting it into the composer.
+  async function attachPromptFile(text, filename) {
+    const plain = String(text || "");
+    const file = new File([plain], filename, { type: "text/plain" });
+    const inview = (n) => {
+      const r = n.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    let input = q(SEL.fileInput);
+    if (!input || !inview(input)) {
+      const btn = q(SEL.attach);
+      if (btn && inview(btn)) {
+        try {
+          btn.click();
+          await sleep(600);
+        } catch (e) {}
+      }
+      input = q(SEL.fileInput);
+    }
+    if (!input) throw new Error("ChatGPT file-upload input not found; cannot attach prompt file.");
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    try {
+      await waitFor(() => document.querySelector(SEL.attachment.join(",")) || input.files.length === 0, 10000, 300);
+    } catch (e) {}
+    return input.files.length === 0 ? true : true;
   }
 
   function clickSend() {
@@ -315,9 +368,24 @@
       const beforeSet = new Set(scanAnswerBlocks(msg.symbol).map((b) => b.block));
 
       sendStatus("asking", "Sending research prompt\u2026");
-      setComposerText(composer, msg.prompt);
+      const promptOk = setComposerText(composer, msg.prompt);
       await sleep(300);
       if (cancelReq === msg.requestId) return;
+
+      if (!promptOk) {
+        sendStatus("asking", "Prompt too big to paste - attaching as a file\u2026");
+        const fname = "research-prompt-" + normSym(msg.symbol) + ".txt";
+        await attachPromptFile(msg.prompt, fname);
+        if (cancelReq === msg.requestId) return;
+        sendStatus("asking", "Prompt attached - sending\u2026");
+        setComposerText(
+          composer,
+          "Read the attached research-prompt.txt, follow it EXACTLY, and reply with only the single JSON object. "
+        );
+        await sleep(400);
+        if (cancelReq === msg.requestId) return;
+      }
+
       if (!clickSend()) {
         throw new Error("Could not press ChatGPT send button.");
       }
