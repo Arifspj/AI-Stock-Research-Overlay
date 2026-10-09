@@ -57,6 +57,7 @@
   let busy = false;
   let pingTimer = null;
   let current = { requestId: null, phase: "working", message: null };
+  let cancelReq = null;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -185,6 +186,7 @@
   async function waitForNoStream(timeout) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
+      if (cancelReq === current.requestId) return false;
       if (!q(SEL.stop)) return true;
       await sleep(500);
     }
@@ -270,6 +272,7 @@
     let stableSince = null;
     let best = null;
     while (Date.now() - start < timeout) {
+      if (cancelReq === current.requestId) return best;
       let candidate = null;
       const blocks = scanAnswerBlocks(symbol);
       for (let i = 0; i < blocks.length; i++) {
@@ -291,11 +294,13 @@
 
   async function runAsk(msg) {
     current = { requestId: msg.requestId, phase: "working", message: "Checking ChatGPT\u2026" };
+    cancelReq = null;
     startPing();
     try {
       // Wait until any in-flight generation finishes.
       sendStatus("opening", "Waiting for ChatGPT\u2026");
       await waitForNoStream(90000);
+      if (cancelReq === msg.requestId) return;
 
       sendStatus("opening", "Locating composer\u2026");
       let composer;
@@ -304,6 +309,7 @@
       } catch (e) {
         throw new Error("ChatGPT composer not found. Open chatgpt.com, log in, and keep the tab open.");
       }
+      if (cancelReq === msg.requestId) return;
 
       const before = qa(SEL.assistant).length;
       const beforeSet = new Set(scanAnswerBlocks(msg.symbol).map((b) => b.block));
@@ -311,6 +317,7 @@
       sendStatus("asking", "Sending research prompt\u2026");
       setComposerText(composer, msg.prompt);
       await sleep(300);
+      if (cancelReq === msg.requestId) return;
       if (!clickSend()) {
         throw new Error("Could not press ChatGPT send button.");
       }
@@ -327,6 +334,7 @@
 
       sendStatus("reading", "Waiting for the research answer\u2026");
       const found = await waitForAnswer(msg.symbol, beforeSet, 180000);
+      if (cancelReq === msg.requestId) return;
 
       if (found) {
         safeSend({
@@ -354,6 +362,7 @@
       }
       throw new Error("Timed out waiting for the ChatGPT answer.");
     } catch (e) {
+      if (cancelReq === msg.requestId) return; // user cancelled; no result to deliver
       safeSend({
         type: "CHATGPT_RESULT",
         requestId: msg.requestId,
@@ -362,12 +371,24 @@
     } finally {
       stopPing();
       busy = false;
+      cancelReq = null;
       current = { requestId: null, phase: "working", message: null };
     }
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (!msg || msg.type !== "ASK_CHATGPT") return;
+    if (!msg) return;
+    if (msg.type === "CHATGPT_CANCEL") {
+      if (cancelReq === msg.requestId) return;
+      cancelReq = msg.requestId;
+      // Try to stop any in-flight generation immediately.
+      try {
+        const stopBtn = q(SEL.stop);
+        if (stopBtn) stopBtn.click();
+      } catch (e) {}
+      return;
+    }
+    if (msg.type !== "ASK_CHATGPT") return;
     if (busy) {
       sendResponse({ ok: false });
       safeSend({

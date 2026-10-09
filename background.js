@@ -514,11 +514,33 @@ async function onChatGptResult(msg) {
   await delPending(msg.requestId);
 }
 
+async function onResearchCancel(msg, sender) {
+  const tabId = sender.tab && sender.tab.id;
+  const id = msg.requestId || null;
+  if (id) {
+    try {
+      await delPending(id);
+    } catch (e) {}
+  }
+  if (tabId !== undefined) researchActive.delete(tabId);
+  try {
+    const obj = await chrome.storage.session.get(CHATGPT_TAB_KEY);
+    const cgTabId = obj[CHATGPT_TAB_KEY];
+    if (cgTabId) {
+      await chrome.tabs.sendMessage(cgTabId, { type: "CHATGPT_CANCEL", requestId: id }).catch(() => {});
+    }
+  } catch (e) {}
+  await toOverlay(tabId, { type: "RESEARCH_CANCELED", requestId: id || undefined });
+}
+
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (!msg || !msg.type) return;
   switch (msg.type) {
     case "RESEARCH_START":
       onResearchStart(msg, sender);
+      break;
+    case "RESEARCH_CANCEL":
+      onResearchCancel(msg, sender);
       break;
     case "CHATGPT_STATUS":
       onChatGptStatus(msg);

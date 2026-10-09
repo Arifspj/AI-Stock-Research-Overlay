@@ -356,6 +356,7 @@
         <div style="font-weight:700;font-size:13px">${escapeHtml(state.message || "Working\u2026")}</div>
         <div class="steps">${stepsHtml}</div>
         <div class="row">
+          <button class="btn ghost" data-act="stop">Stop</button>
           <button class="btn ghost" data-act="close">Hide</button>
         </div>
       </div>`;
@@ -502,6 +503,7 @@
         else if (act === "demo") runResearch(true);
         else if (act === "refresh") hardRefresh();
         else if (act === "copy") copyJson();
+        else if (act === "stop") cancelResearch();
         else if (act === "open-screener") openScreener();
       });
     });
@@ -533,6 +535,27 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).catch(() => {});
     }
+  }
+
+  function cancelResearch() {
+    const id = state.requestId;
+    const wasLoading = state.status === "loading";
+    state.requestId = null;
+    state.status = "idle";
+    state.payload = null;
+    state.error = null;
+    state.message = null;
+    state.fromCache = false;
+    state.cachedAt = null;
+    render();
+    if (id) {
+      try {
+        const p = chrome.runtime.sendMessage({ type: "RESEARCH_CANCEL", requestId: id });
+        if (p && p.catch) p.catch(() => {});
+      } catch (e) {}
+    }
+    // If we were stuck mid-flow, offer a clean restart.
+    if (wasLoading && settings.autoOpen) toggle(true);
   }
 
   // ---- research flow ----------------------------------------------------
@@ -618,6 +641,16 @@
       else setError(msg.parseError || "ChatGPT did not return valid JSON.");
     } else if (msg.type === "RESEARCH_ERROR") {
       setError(msg.error);
+    } else if (msg.type === "RESEARCH_CANCELED") {
+      // Confirm the cancelled state (already handled locally on Stop click).
+      if (state.status === "loading") {
+        state.requestId = null;
+        state.status = "idle";
+        state.payload = null;
+        state.error = null;
+        state.message = null;
+        render();
+      }
     }
   });
 
