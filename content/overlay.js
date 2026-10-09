@@ -43,8 +43,14 @@
 .head .sym { font-weight: 800; font-size: 15px; letter-spacing: .3px; }
 .head .company { font-size: 11px; color: #9aa1b4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
 .head .spacer { flex: 1; }
-.iconbtn { background: transparent; border: none; color: #9aa1b4; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px 6px; border-radius: 8px; }
+.iconbtn { background: transparent; border: none; color: #9aa1b4; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px 6px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
 .iconbtn:hover { background: rgba(255,255,255,.08); color: #fff; }
+.iconbtn .ic { width: 15px; height: 15px; }
+.iconbtn.openlink { color: #7fb2ff; }
+.iconbtn.openlink:hover { color: #bcd9ff; background: rgba(127,178,255,.12); }
+.srcicon { background: transparent; border: none; color: #6f86ff; cursor: pointer; padding: 5px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.srcicon .ic { width: 13px; height: 13px; }
+.srcicon:hover { background: rgba(124,92,255,.2); color: #cdc0ff; }
 .body { padding: 14px; overflow-y: auto; }
 .body::-webkit-scrollbar { width: 8px; }
 .body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 8px; }
@@ -60,7 +66,8 @@
 .btn.ghost:hover { background: rgba(255,255,255,.12); }
 .row { display: flex; gap: 8px; margin-top: 10px; }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.badge { font-size: 10px; font-weight: 800; letter-spacing: .4px; padding: 4px 8px; border-radius: 999px; background: rgba(124,92,255,.16); color: #b9a9ff; border: 1px solid rgba(124,92,255,.35); text-transform: uppercase; }
+.badge { font-size: 10px; font-weight: 800; letter-spacing: .4px; padding: 4px 8px; border-radius: 999px; background: rgba(124,92,255,.16); color: #b9a9ff; border: 1px solid rgba(124,92,255,.35); text-transform: uppercase; transition: background .15s ease, transform .15s ease; }
+.badge:hover { background: rgba(124,92,255,.28); }
 .topline { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .ltp { font-size: 26px; font-weight: 800; }
 .ltp small { font-size: 11px; font-weight: 600; color: #9aa1b4; margin-left: 4px; }
@@ -70,10 +77,11 @@
 .pill.HOLD { background: rgba(245,166,35,.16); color: #f5a623; border: 1px solid rgba(245,166,35,.4); }
 .pill.EXIT { background: rgba(139,143,154,.18); color: #c2c6d0; border: 1px solid rgba(139,143,154,.4); }
 .section { margin-top: 12px; }
-.section-title { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #7e879c; margin-bottom: 8px; }
+.section-title { font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #7e879c; margin-bottom: 8px; padding-left: 7px; border-left: 3px solid #7c5cff; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
-.card { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); border-radius: 11px; padding: 9px 10px; }
+.card { background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); border-radius: 11px; padding: 9px 10px; transition: background .15s ease, border-color .15s ease; }
+.card:hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.13); }
 .card .k { font-size: 10px; color: #8b93a7; margin-bottom: 3px; }
 .card .v { font-size: 14px; font-weight: 700; }
 .up { color: #16c784; } .down { color: #ff6b73; } .flat { color: #c2c6d0; }
@@ -97,11 +105,10 @@
 .tailwind.yes { background: rgba(22,199,132,.14); color: #16c784; border: 1px solid rgba(22,199,132,.35); }
 .tailwind.no { background: rgba(234,57,67,.14); color: #ff6b73; border: 1px solid rgba(234,57,67,.35); }
 .newslist { display: flex; flex-direction: column; gap: 10px; }
-.newitem { font-size: 11px; line-height: 1.5; }
+.newitem { font-size: 11px; line-height: 1.5; display: flex; gap: 8px; align-items: flex-start; }
+.newitem .txt { flex: 1; min-width: 0; }
 .newitem .t { color: #e7e9f0; }
 .newitem .sub { color: #8b93a7; margin-top: 1px; }
-.link { color: #7fb2ff; text-decoration: none; font-size: 10px; word-break: break-all; }
-.link:hover { text-decoration: underline; }
 `;
 
   // ---- state ------------------------------------------------------------
@@ -123,6 +130,15 @@
   let ui = null;
 
   // ---- helpers ----------------------------------------------------------
+  const LINK_SVG =
+    '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+
+  const SCREENER_DOMAIN = "www.screener.in";
+
+  function screenerUrl(symbol) {
+    return "https://" + SCREENER_DOMAIN + "/company/" + encodeURIComponent(String(symbol || "")) + "/";
+  }
+
   function uid() {
     if (self.crypto && self.crypto.randomUUID) return self.crypto.randomUUID();
     return "req-" + Date.now() + "-" + Math.random().toString(16).slice(2);
@@ -275,6 +291,7 @@
           <div class="company">${escapeHtml(state.payload && state.payload.name ? state.payload.name : (info.site + (info.exchange ? " \u00b7 " + info.exchange : "")))}</div>
         </div>
         <div class="spacer"></div>
+        <button class="iconbtn openlink" data-act="open-screener" title="Open on Screener.in">${LINK_SVG}</button>
         <button class="iconbtn" data-act="refresh" title="Hard refresh (clear cache)">&#8635;</button>
         <button class="iconbtn" data-act="close" title="Close">&#10005;</button>
       </div>`;
@@ -352,21 +369,21 @@
     const deltaCard = (label, v) =>
       `<div class="card"><div class="k">${escapeHtml(label)}</div><div class="v ${clsForDelta(v)}">${escapeHtml(v || "\u2014")}</div></div>`;
 
-    const srcLink = (src) =>
+    const srcIcon = (src) =>
       src
-        ? `<div><a class="link" href="${escapeHtml(src)}" target="_blank" rel="noopener noreferrer">${escapeHtml(src)}</a></div>`
+        ? `<button class="srcicon" data-url="${escapeHtml(src)}" title="${escapeHtml(src)}">${LINK_SVG}</button>`
         : "";
 
     const pointItem = (li) =>
-      `<div class="newitem"><div class="t">${escapeHtml(li && li.point ? li.point : "")}</div>${srcLink(li && li.source)}</div>`;
+      `<div class="newitem"><div class="txt"><div class="t">${escapeHtml(li && li.point ? li.point : "")}</div></div>${srcIcon(li && li.source)}</div>`;
     const orderItem = (li) => {
       const parts = [];
       if (li && li.value) parts.push(String(li.value));
       if (li && li.date) parts.push(String(li.date));
-      return `<div class="newitem"><div class="t">${escapeHtml(li && li.desc ? li.desc : "")}</div>${parts.length ? `<div class="sub">${escapeHtml(parts.join(" \u00b7 "))}</div>` : ""}${srcLink(li && li.source)}</div>`;
+      return `<div class="newitem"><div class="txt"><div class="t">${escapeHtml(li && li.desc ? li.desc : "")}</div>${parts.length ? `<div class="sub">${escapeHtml(parts.join(" \u00b7 "))}</div>` : ""}</div>${srcIcon(li && li.source)}</div>`;
     };
     const compItem = (li) =>
-      `<div class="newitem"><div class="t">${escapeHtml(li && li.name ? li.name : "")}</div><div>${escapeHtml(li && li.relation ? li.relation : "")}</div>${srcLink(li && li.source)}</div>`;
+      `<div class="newitem"><div class="txt"><div class="t">${escapeHtml(li && li.name ? li.name : "")}</div><div>${escapeHtml(li && li.relation ? li.relation : "")}</div></div>${srcIcon(li && li.source)}</div>`;
 
     const sectionList = (title, arr, fn) =>
       arr && arr.length
@@ -388,6 +405,7 @@
           <div class="company">${escapeHtml(payload.name || "")}</div>
         </div>
         <div class="spacer"></div>
+        <button class="iconbtn openlink" data-act="open-screener" title="Open on Screener.in">${LINK_SVG}</button>
         <button class="iconbtn" data-act="refresh" title="Hard refresh (clear cache)">&#8635;</button>
         <button class="iconbtn" data-act="close" title="Close">&#10005;</button>
       </div>
@@ -463,8 +481,25 @@
         else if (act === "demo") runResearch(true);
         else if (act === "refresh") hardRefresh();
         else if (act === "copy") copyJson();
+        else if (act === "open-screener") openScreener();
       });
     });
+    p.querySelectorAll("[data-url]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openUrl(el.getAttribute("data-url"));
+      });
+    });
+  }
+
+  function openUrl(url) {
+    if (!url) return;
+    window.open(url, "_blank", "noopener,width=900,height=700");
+  }
+
+  function openScreener() {
+    const sym = (state.payload && state.payload.symbol) || info.symbol;
+    openUrl(screenerUrl(sym));
   }
 
   function copyJson() {
