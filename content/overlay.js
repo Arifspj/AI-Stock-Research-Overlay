@@ -328,11 +328,12 @@
 
   function viewLoading() {
     const steps = [
+      { k: "screener", label: "Fetch data from screener.in" },
       { k: "opening", label: "Open ChatGPT session" },
       { k: "asking", label: "Ask for stock research" },
       { k: "reading", label: "Read & parse JSON" }
     ];
-    const order = { opening: 0, starting: 0, asking: 1, reading: 2 };
+    const order = { starting: 0, screener: 0, opening: 1, asking: 2, reading: 3 };
     const cur = order[state.phase] === undefined ? 0 : order[state.phase];
     const stepsHtml = steps
       .map((s, i) => {

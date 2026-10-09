@@ -329,7 +329,7 @@ async function onResearchStart(msg, sender) {
     await toOverlay(tabId, {
       type: "RESEARCH_STATUS",
       requestId: requestId,
-      phase: "opening",
+      phase: "screener",
       message: "Fetching data from screener.in\u2026"
     });
 
@@ -354,6 +354,13 @@ async function onResearchStart(msg, sender) {
       pending.verified = verified;
       await setPending(requestId, pending);
     }
+
+    await toOverlay(tabId, {
+      type: "RESEARCH_STATUS",
+      requestId: requestId,
+      phase: "opening",
+      message: "Opening ChatGPT session\u2026"
+    });
 
     const cgTabId = await getOrCreateChatGptTab();
     await chrome.storage.session.set({ [CHATGPT_TAB_KEY]: cgTabId });
