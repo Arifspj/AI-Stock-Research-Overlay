@@ -151,9 +151,12 @@ async function fetchHtml(url) {
 
 async function parseScreenerUrl(slug) {
   const enc = encodeURIComponent(slug || "");
+  // Standalone page is screener's canonical view (its top-ratios use the
+  // standalone financials, e.g. sane P/E). Consolidated first would expose
+  // screener's consolidated-derived ratios (see Stellant 526071: P/E 5518).
   const urls = [
-    "https://www.screener.in/company/" + enc + "/consolidated/",
-    "https://www.screener.in/company/" + enc + "/"
+    "https://www.screener.in/company/" + enc + "/",
+    "https://www.screener.in/company/" + enc + "/consolidated/"
   ];
   for (const url of urls) {
     const html = await fetchHtml(url);
@@ -301,8 +304,8 @@ async function waitForTabComplete(tabId) {
 async function staticQuarterly(slug) {
   const enc = encodeURIComponent(slug || "");
   const urls = [
-    "https://www.screener.in/company/" + enc + "/consolidated/",
-    "https://www.screener.in/company/" + enc + "/"
+    "https://www.screener.in/company/" + enc + "/",
+    "https://www.screener.in/company/" + enc + "/consolidated/"
   ];
   for (const url of urls) {
     const html = await fetchHtml(url);
