@@ -148,6 +148,7 @@ const ANNUAL_HTML = `
     <tbody>
       <tr><td>Sales +</td><td>287</td><td>334</td><td>3,060</td><td>3,428</td></tr>
       <tr><td>Operating Profit</td><td>28</td><td>32</td><td>475</td><td>515</td></tr>
+      <tr><td>Depreciation</td><td>2</td><td>4</td><td>95</td><td>213</td></tr>
       <tr><td>Net Profit +</td><td>10</td><td>12</td><td>163</td><td>177</td></tr>
     </tbody>
   </table>
@@ -176,7 +177,8 @@ const ANNUAL_HTML = `
 test("parseFundamentals computes CFO/PAT, Piotroski proxy and performance", () => {
   const f = screener.parseFundamentals(ANNUAL_HTML);
   assert.ok(f);
-  assert.equal(f.cfoPat, -0.54);
+  // Trailing-3-year CFO/PAT = (85 + 191 + -96) / (12 + 163 + 177) = 180/352.
+  assert.equal(f.cfoPat, 0.51);
   assert.ok(typeof f.piotroski === "number");
   assert.equal(f.performance, "Good");
   // Cross-check the F-score apart by hand:
@@ -188,9 +190,17 @@ test("parseFundamentals computes CFO/PAT, Piotroski proxy and performance", () =
 test("parseScreener carries fundamentals", () => {
   const p = screener.parseScreener(ANNUAL_HTML);
   assert.ok(p);
-  assert.equal(p.fundamentals.cfoPat, -0.54);
+  assert.equal(p.fundamentals.cfoPat, 0.51);
   assert.equal(p.fundamentals.piotroski, 3);
   assert.equal(p.fundamentals.performance, "Good");
+});
+
+test("parseFundamentals flags negative cash conversion and high debt", () => {
+  const f = screener.parseFundamentals(ANNUAL_HTML);
+  assert.ok(f);
+  assert.equal(f.cashFlowNegative, false);
+  assert.equal(typeof f.highDebt, "boolean");
+  assert.ok(f.ebitda > 0);
 });
 
 test("parseFundamentals returns null without annual sections", () => {
@@ -224,6 +234,43 @@ test("computeValuation works with only book value (no growth)", () => {
   assert.ok(v);
   // EPS = 10, Graham = sqrt(22.5 * 10 * 50) = sqrt(11250) ~ 106.07
   assert.ok(Math.abs(v.fairValue - 106.07) < 0.1);
+});
+
+test("computeValuation uses debt-adjusted EV/EBITDA when cash conversion negative", () => {
+  // CPPLUS-like: negative 3-year CFO/PAT, heavy debt.
+  const v = screener.computeValuation({
+    ltp: 4185,
+    pe: 114,
+    bookValue: 50,
+    mcap: 51322,
+    ebitda: 634,
+    netDebt: 222,
+    cashFlowNegative: true,
+    highDebt: true,
+    growth: "+354.8%"
+  });
+  assert.ok(v);
+  // Fair mcap = 634 * 6 - 222 = 3582. Shares = 51322 / 4185 = 12.26 Cr.
+  // Fair price = 3582 / 12.26 ~ 292.17
+  assert.ok(Math.abs(v.fairValue - 292.17) < 1);
+  assert.equal(v.status, "Overvalued");
+  assert.ok(v.method.indexOf("EV/EBITDA") !== -1);
+});
+
+test("computeValuation keeps Graham blend for healthy cash conversion", () => {
+  const v = screener.computeValuation({
+    ltp: 154,
+    pe: 34.4,
+    bookValue: 24.8,
+    mcap: 5638,
+    ebitda: 728,
+    netDebt: 995,
+    cashFlowNegative: false,
+    highDebt: false,
+    growth: "+12.7%"
+  });
+  assert.ok(v);
+  assert.ok(v.method.indexOf("Graham") !== -1);
 });
 
 test("parseScreener exposes computed valuation", () => {
