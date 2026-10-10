@@ -216,6 +216,7 @@ function buildVerified(parsed, quarterly) {
     roe: r.roe !== undefined ? r.roe : null,
     qoq: changes.qoq || null,
     yoy: changes.yoy || null,
+    workingCapital: parsed.workingCapital || null,
     quarters: q.columns || [],
     sales: series.sales || null,
     netProfit: series.netProfit || null,
@@ -357,6 +358,7 @@ function applyVerified(payload, v) {
   if (v.divYield !== null && v.divYield !== undefined) m.divYield = v.divYield;
   if (v.roce !== null && v.roce !== undefined) m.roce = v.roce;
   if (v.roe !== null && v.roe !== undefined) m.roe = v.roe;
+  if (v.workingCapital && v.workingCapital.status) m.workingCapital = v.workingCapital;
 
   const merge = (dest, src) => {
     if (!src) return;

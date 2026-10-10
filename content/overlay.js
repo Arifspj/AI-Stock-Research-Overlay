@@ -90,7 +90,13 @@
 .card:hover { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.13); }
 .card .k { font-size: 10px; color: #8b93a7; margin-bottom: 3px; }
 .card .v { font-size: 14px; font-weight: 700; }
+.card .d { font-size: 10px; color: #8b93a7; margin-top: 2px; }
 .up { color: #16c784; } .down { color: #ff6b73; } .flat { color: #c2c6d0; }
+.wc-badge { font-size: 9px; font-weight: 800; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; border: 1px solid currentColor; }
+.wc-badge.up { color: #16c784; } .wc-badge.down { color: #ff6b73; } .wc-badge.flat { color: #c2c6d0; }
+.wc-badge.up { background: rgba(22,199,132,.12); }
+.wc-badge.down { background: rgba(234,57,67,.12); }
+.wc-badge.flat { background: rgba(255,255,255,.05); }
 .valbar { height: 8px; border-radius: 6px; background: linear-gradient(90deg,#16c784,#f5a623,#ea3943); margin: 9px 0 6px; position: relative; }
 .valbar .mark { position: absolute; top: -4px; width: 2px; height: 16px; background: #fff; border-radius: 2px; box-shadow: 0 0 6px rgba(255,255,255,.8); }
 .spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,.18); border-top-color: #7c5cff; border-radius: 50%; animation: sr-spin .8s linear infinite; margin: 0 auto 12px; }
@@ -391,6 +397,31 @@
     const deltaCard = (label, v) =>
       `<div class="card"><div class="k">${escapeHtml(label)}</div><div class="v ${clsForDelta(v)}">${escapeHtml(v || "\u2014")}</div></div>`;
 
+    const wcCard = (label, v) => {
+      if (!v) return `<div class="card"><div class="k">${escapeHtml(label)}</div><div class="v">\u2014</div></div>`;
+      const cls = v.delta === null || v.delta === undefined || v.delta === 0 ? "flat" : v.delta > 0 ? "down" : "up";
+      const delta =
+        v.delta === null || v.delta === undefined
+          ? ""
+          : `<div class="d ${cls}">${fmtNum(v.value, 0)}d (${v.delta > 0 ? "+" : "\u2212"}${escapeHtml(fmtNum(Math.abs(v.delta), 0))}d)</div>`;
+      return `<div class="card"><div class="k">${escapeHtml(label)}</div><div class="v">${escapeHtml(fmtNum(v.value, 0))}d</div>${delta}</div>`;
+    };
+
+    const wcStatusCls = (s) => (s === "Good" ? "up" : s === "Worse" ? "down" : "flat");
+    const wcSection = (w) =>
+      w && w.status
+        ? `<div class="section">
+            <div class="section-title">Working Capital + CCC <span class="wc-badge ${wcStatusCls(w.status)}">${escapeHtml(w.status)}</span></div>
+            <div class="grid3">
+              ${wcCard("CCC", w.ccc)}
+              ${wcCard("DSO", w.dso)}
+              ${wcCard("DIO", w.dio)}
+              ${wcCard("DPO", w.dpo)}
+              ${wcCard("Working Capital Days", w.wcDays)}
+            </div>
+          </div>`
+        : "";
+
     const srcIcon = (src) =>
       src
         ? `<button class="srcicon" data-url="${escapeHtml(src)}" title="${escapeHtml(src)}">${LINK_SVG}</button>`
@@ -479,6 +510,8 @@
             <div class="card"><div class="k">Performance</div><div class="v ${perfClass(m.performance)}">${escapeHtml(m.performance || "\u2014")}</div></div>
           </div>
         </div>
+
+        ${wcSection(m.workingCapital)}
 
         ${summary}
         ${sector}

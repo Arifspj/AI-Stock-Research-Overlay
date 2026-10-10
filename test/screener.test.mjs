@@ -85,3 +85,55 @@ test("parseQuarterlyRows returns null without matching rows", () => {
   assert.equal(screener.parseQuarterlyRows([["foo", "1", "2"]], ["", "x", "y"]), null);
   assert.equal(screener.parseQuarterlyRows([], []), null);
 });
+
+test("parseWorkCap extracts CCC, DSO, DIO, DPO, WC days and status", () => {
+  const html = `
+    <section id="ratios" class="card card-large">
+      <table class="data-table">
+        <thead><tr><th></th><th>Mar 2024</th><th>Mar 2025</th><th>Mar 2026</th></tr></thead>
+        <tbody>
+          <tr><td>Debtor Days</td><td>0</td><td>0</td><td>-0</td></tr>
+          <tr><td>Inventory Days</td><td>151</td><td>140</td><td>195</td></tr>
+          <tr><td>Days Payable</td><td>69</td><td>85</td><td>79</td></tr>
+          <tr><td>Cash Conversion Cycle</td><td>87</td><td>56</td><td>116</td></tr>
+          <tr><td>Working Capital Days</td><td>50</td><td>19</td><td>47</td></tr>
+        </tbody>
+      </table>
+    </section>`;
+  const w = screener.parseWorkCap(html);
+  assert.ok(w);
+  assert.equal(w.ccc.value, 116);
+  assert.equal(w.ccc.prev, 56);
+  assert.equal(w.ccc.delta, 60);
+  assert.equal(w.dio.value, 195);
+  assert.equal(w.dio.delta, 55);
+  assert.equal(w.dpo.value, 79);
+  assert.equal(w.dpo.delta, -6);
+  assert.equal(w.wcDays.value, 47);
+  assert.equal(w.wcDays.delta, 28);
+  assert.equal(w.status, "Worse");
+});
+
+test("parseWorkCap says Good when CCC shrinks", () => {
+  const html = `
+    <section id="ratios" class="card card-large">
+      <table class="data-table">
+        <thead><tr><th></th><th>Mar 2025</th><th>Mar 2026</th></tr></thead>
+        <tbody>
+          <tr><td>Debtor Days</td><td>10</td><td>8</td></tr>
+          <tr><td>Inventory Days</td><td>190</td><td>150</td></tr>
+          <tr><td>Days Payable</td><td>70</td><td>80</td></tr>
+          <tr><td>Cash Conversion Cycle</td><td>130</td><td>78</td></tr>
+          <tr><td>Working Capital Days</td><td>60</td><td>40</td></tr>
+        </tbody>
+      </table>
+    </section>`;
+  const w = screener.parseWorkCap(html);
+  assert.ok(w);
+  assert.equal(w.ccc.delta, -52);
+  assert.equal(w.status, "Good");
+});
+
+test("parseWorkCap returns null without ratios table", () => {
+  assert.equal(screener.parseWorkCap("no table here"), null);
+});
