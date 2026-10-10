@@ -137,3 +137,63 @@ test("parseWorkCap says Good when CCC shrinks", () => {
 test("parseWorkCap returns null without ratios table", () => {
   assert.equal(screener.parseWorkCap("no table here"), null);
 });
+
+const ANNUAL_HTML = `
+<ul id="top-ratios" class="company-ratios">
+  <li class="flex-row"><span class="name">Current Price</span><span class="nowrap value"><span class="number">154</span></span></li>
+</ul>
+<section id="profit-loss" class="card">
+  <table class="data-table">
+    <thead><tr><th></th><th>Mar 2015</th><th>Mar 2016</th><th>Mar 2025</th><th>Mar 2026</th></tr></thead>
+    <tbody>
+      <tr><td>Sales +</td><td>287</td><td>334</td><td>3,060</td><td>3,428</td></tr>
+      <tr><td>Operating Profit</td><td>28</td><td>32</td><td>475</td><td>515</td></tr>
+      <tr><td>Net Profit +</td><td>10</td><td>12</td><td>163</td><td>177</td></tr>
+    </tbody>
+  </table>
+</section>
+<section id="cash-flow" class="card">
+  <table class="data-table">
+    <thead><tr><th></th><th>Mar 2024</th><th>Mar 2025</th><th>Mar 2026</th></tr></thead>
+    <tbody>
+      <tr><td>Cash from Operating Activity +</td><td>85</td><td>191</td><td>-96</td></tr>
+    </tbody>
+  </table>
+</section>
+<section id="balance-sheet" class="card">
+  <table class="data-table">
+    <thead><tr><th></th><th>Mar 2025</th><th>Mar 2026</th></tr></thead>
+    <tbody>
+      <tr><td>Equity Capital</td><td>35</td><td>36</td></tr>
+      <tr><td>Borrowings +</td><td>861</td><td>995</td></tr>
+      <tr><td>Other Liabilities +</td><td>372</td><td>525</td></tr>
+      <tr><td>Other Assets +</td><td>716</td><td>1,412</td></tr>
+      <tr><td>Total Assets</td><td>1,577</td><td>2,422</td></tr>
+    </tbody>
+  </table>
+</section>`;
+
+test("parseFundamentals computes CFO/PAT, Piotroski proxy and performance", () => {
+  const f = screener.parseFundamentals(ANNUAL_HTML);
+  assert.ok(f);
+  assert.equal(f.cfoPat, -0.54);
+  assert.ok(typeof f.piotroski === "number");
+  assert.equal(f.performance, "Good");
+  // Cross-check the F-score apart by hand:
+  // +ve NP(1) +ve CFO(0) ROA up(0) CFO>NP(0) leverage down(1)
+  // other-asset ratio up(1) no new shares(0) op margin up(0) turnover up(0) = 3
+  assert.equal(f.piotroski, 3);
+});
+
+test("parseScreener carries fundamentals", () => {
+  const p = screener.parseScreener(ANNUAL_HTML);
+  assert.ok(p);
+  assert.equal(p.fundamentals.cfoPat, -0.54);
+  assert.equal(p.fundamentals.piotroski, 3);
+  assert.equal(p.fundamentals.performance, "Good");
+});
+
+test("parseFundamentals returns null without annual sections", () => {
+  assert.equal(screener.parseFundamentals("no sections here"), null);
+  assert.equal(screener.parseFundamentals(""), null);
+});
