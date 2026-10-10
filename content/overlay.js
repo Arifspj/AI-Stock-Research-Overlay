@@ -479,7 +479,6 @@
         <button class="iconbtn" data-act="close" title="Close">&#10005;</button>
       </div>
       <div class="body">
-        ${screenerOnly ? `<div class="srnote">Screener data only \u00b7 ChatGPT research is OFF</div>` : ""}
         ${badges ? `<div class="badges">${badges}</div>` : ""}
 
         <div class="topline">
@@ -538,6 +537,7 @@
         ${sectionList("Risks", payload.risks, pointItem)}
         ${sectionList("Big Orders", payload.bigOrders, orderItem)}
         ${sectionList("Linked Companies", payload.linkedCompanies, compItem)}
+        ${screenerOnly ? `<div class="srnote">Screener data only \u00b7 ChatGPT research is OFF</div>` : ""}
       </div>
       <div class="foot">
         <span class="muted">${footLabel(payload)}</span>
