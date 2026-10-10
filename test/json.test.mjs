@@ -90,6 +90,13 @@ test("normalizePayload handles empty input", () => {
   assert.equal(out.metrics.ltp, null);
 });
 
+test("normalizePayload preserves screenerOnly flag", () => {
+  const on = JSONX.normalizePayload({ symbol: "X", screenerOnly: true }, "X");
+  assert.equal(on.screenerOnly, true);
+  const off = JSONX.normalizePayload({ symbol: "X" }, "X");
+  assert.equal(off.screenerOnly, false);
+});
+
 // Mirrors chatgpt.js scanning: the prompt schema is valid JSON (its "comments"
 // live inside strings) and has symbol "string", so the answer must be selected
 // by matching the requested symbol.

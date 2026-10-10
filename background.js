@@ -349,6 +349,48 @@ async function getQuarterly(slug, sender) {
 }
 
 // Force the scraped ground-truth numbers onto the model's payload.
+// Build a ground-truth-only payload when the user disables ChatGPT research.
+function buildScreenerOnlyPayload(verified, slug, symbol) {
+  const qoq = verified.qoq || {};
+  const yoy = verified.yoy || {};
+  const badges = [];
+  if (verified.roce !== null && verified.roce !== undefined && verified.roce >= 20) badges.push("ROCE STAR");
+  if (
+    verified.roe !== null && verified.roe !== undefined && verified.roe >= 15 &&
+    verified.roce !== null && verified.roce !== undefined && verified.roce >= 15
+  ) {
+    badges.push("QUALITY BUSINESS");
+  }
+  const yoySales = parseFloat(String(yoy.sales || "").replace(/[^0-9.\-]/g, ""));
+  if (!isNaN(yoySales) && yoySales > 30) badges.push("HIGH GROWTH");
+  if (verified.pe !== null && verified.pe !== undefined && verified.pe > 0 && verified.pe < 15) badges.push("LOW P/E");
+
+  const metrics = {
+    badges: badges,
+    ltp: verified.ltp,
+    mcap: verified.marketCap,
+    pe: verified.pe,
+    divYield: verified.divYield,
+    roce: verified.roce,
+    roe: verified.roe,
+    qoq: { sales: qoq.sales || null, netProfit: qoq.netProfit || null, profit: qoq.profit || null },
+    yoy: { sales: yoy.sales || null, netProfit: yoy.netProfit || null, profit: yoy.profit || null }
+  };
+  if (verified.workingCapital && verified.workingCapital.status) {
+    metrics.workingCapital = verified.workingCapital;
+  }
+  const payload = {
+    symbol: symbol || null,
+    name: null,
+    source: "screener",
+    screenerOnly: true,
+    generatedAt: new Date().toISOString(),
+    metrics: metrics
+  };
+  if (slug) payload._scrSlug = slug;
+  return payload;
+}
+
 function applyVerified(payload, v) {
   if (!payload || !v) return payload;
   const m = payload.metrics || (payload.metrics = {});
@@ -436,6 +478,23 @@ async function onResearchStart(msg, sender) {
       pending.verified = verified;
       pending.slug = scrSlug;
       await setPending(requestId, pending);
+    }
+
+    // Toggle OFF: return ground-truth screener data without ChatGPT.
+    if (msg.useChatGpt === false) {
+      await toOverlay(tabId, {
+        type: "RESEARCH_STATUS",
+        requestId: requestId,
+        phase: "reading",
+        message: "Screener data ready (ChatGPT research is OFF)\u2026"
+      });
+      await toOverlay(tabId, {
+        type: "RESEARCH_RESULT",
+        requestId: requestId,
+        payload: buildScreenerOnlyPayload(verified, scrSlug, msg.symbol)
+      });
+      await delPending(requestId);
+      return;
     }
 
     await toOverlay(tabId, {

@@ -112,6 +112,10 @@
 .smallbtn { pointer-events: auto; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #cfd3df; border-radius: 8px; padding: 6px 10px; font-size: 11px; cursor: pointer; font-weight: 600; }
 .smallbtn:hover { background: rgba(255,255,255,.12); }
 .lead { font-size: 13px; line-height: 1.6; color: #cfd3df; margin-bottom: 2px; }
+.srnote { font-size: 10px; font-weight: 700; letter-spacing: .4px; color: #f5a623; background: rgba(245,166,35,.1); border: 1px solid rgba(245,166,35,.3); border-radius: 8px; padding: 5px 8px; margin-bottom: 10px; text-transform: uppercase; }
+.aibtn { font-size: 9px; font-weight: 800; letter-spacing: .3px; padding: 0 8px; border-radius: 8px; }
+.aibtn.on { color: #16c784; border-color: rgba(22,199,132,.45); background: rgba(22,199,132,.12); }
+.aibtn.off { color: #8b93a7; border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.05); }
 .sectorrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tailwind { font-size: 10px; font-weight: 800; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
 .tailwind.yes { background: rgba(22,199,132,.14); color: #16c784; border: 1px solid rgba(22,199,132,.35); }
@@ -136,7 +140,7 @@
     fromCache: false,
     cachedAt: null
   };
-  let settings = { demo: false, autoResearch: true, autoOpen: true };
+  let settings = { demo: false, autoResearch: true, autoOpen: true, useChatGpt: true };
   let host = null;
   let root = null;
   let ui = null;
@@ -202,6 +206,7 @@
   function footLabel(payload) {
     if (state.fromCache) return "Cached \u00b7 " + timeAgo(state.cachedAt) + " (hard refresh for new)";
     if (payload && payload.source === "demo") return "Demo data";
+    if (payload && payload.screenerOnly) return "Source: Screener.in (ChatGPT off)";
     const when = payload && payload.generatedAt ? new Date(payload.generatedAt).toLocaleString() : "";
     return "Source: ChatGPT" + (when ? " \u00b7 " + when : "");
   }
@@ -310,6 +315,7 @@
   }
 
   function headHtml(sub) {
+    const aiOn = settings.useChatGpt !== false;
     return `
       <div class="head">
         <div>
@@ -317,6 +323,7 @@
           <div class="company">${escapeHtml(state.payload && state.payload.name ? state.payload.name : (info.site + (info.exchange ? " \u00b7 " + info.exchange : "")))}</div>
         </div>
         <div class="spacer"></div>
+        <button class="iconbtn aibtn ${aiOn ? "on" : "off"}" data-act="ai-toggle" title="${aiOn ? "ChatGPT research ON - click to show only screener data" : "ChatGPT research OFF - click to research on ChatGPT"}">${aiOn ? "AI ON" : "AI OFF"}</button>
         <button class="iconbtn openlink" data-act="open-screener" title="Open on Screener.in">${LINK_SVG}</button>
         <button class="iconbtn" data-act="refresh" title="Hard refresh (clear cache)">&#8635;</button>
         <button class="iconbtn" data-act="close" title="Close">&#10005;</button>
@@ -339,13 +346,20 @@
   }
 
   function viewLoading() {
-    const steps = [
-      { k: "screener", label: "Fetch data from screener.in" },
-      { k: "opening", label: "Open ChatGPT session" },
-      { k: "asking", label: "Ask for stock research" },
-      { k: "reading", label: "Read & parse JSON" }
-    ];
-    const order = { starting: 0, screener: 0, opening: 1, asking: 2, reading: 3 };
+    const steps = settings.useChatGpt !== false
+      ? [
+        { k: "screener", label: "Fetch data from screener.in" },
+        { k: "opening", label: "Open ChatGPT session" },
+        { k: "asking", label: "Ask for stock research" },
+        { k: "reading", label: "Read & parse JSON" }
+      ]
+      : [
+        { k: "screener", label: "Fetch data from screener.in" },
+        { k: "reading", label: "Build metrics" }
+      ];
+    const order = settings.useChatGpt !== false
+      ? { starting: 0, screener: 0, opening: 1, asking: 2, reading: 3 }
+      : { starting: 0, screener: 0, reading: 1 };
     const cur = order[state.phase] === undefined ? 0 : order[state.phase];
     const stepsHtml = steps
       .map((s, i) => {
@@ -451,6 +465,8 @@
         ? `<div class="section"><div class="section-title">Sector</div><div><div class="sectorrow"><span>${escapeHtml(payload.sector.name)}</span><span class="tailwind ${payload.sector.tailwind ? "yes" : "no"}">${payload.sector.tailwind ? "Tailwind" : "No tailwind"}</span></div>${payload.sector.reason ? `<div class="muted" style="margin-top:6px">${richHtml(payload.sector.reason)}</div>` : ""}</div></div>`
         : "";
 
+    const screenerOnly = payload.screenerOnly === true;
+
     return `
       <div class="head">
         <div>
@@ -463,21 +479,24 @@
         <button class="iconbtn" data-act="close" title="Close">&#10005;</button>
       </div>
       <div class="body">
+        ${screenerOnly ? `<div class="srnote">Screener data only \u00b7 ChatGPT research is OFF</div>` : ""}
         ${badges ? `<div class="badges">${badges}</div>` : ""}
 
         <div class="topline">
           <div class="ltp">\u20b9${escapeHtml(fmtNum(m.ltp))}<small>LTP</small></div>
-          <div class="pill ${escapeHtml(action || "HOLD")}">${escapeHtml(action || "\u2014")}</div>
+          ${action ? `<div class="pill ${escapeHtml(action)}">${escapeHtml(action)}</div>` : ""}
         </div>
 
-        <div class="section">
+        ${screenerOnly
+          ? ""
+          : `<div class="section">
           <div class="section-title">Valuation${val.status ? " \u00b7 " + escapeHtml(val.status) : ""}${typeof val.percent === "number" ? " (" + escapeHtml(fmtNum(val.percent, 1)) + "%)" : ""}</div>
           <div class="valbar"><div class="mark" style="left:${markLeft}%"></div></div>
           <div class="grid2">
             <div class="card"><div class="k">Fair Value</div><div class="v">\u20b9${escapeHtml(fmtNum(val.fairValue))}</div></div>
             <div class="card"><div class="k">LTP</div><div class="v">\u20b9${escapeHtml(fmtNum(val.ltp !== null && val.ltp !== undefined ? val.ltp : m.ltp))}</div></div>
           </div>
-        </div>
+        </div>`}
 
         <div class="section">
           <div class="section-title">Quarter on Quarter (QoQ)</div>
@@ -537,6 +556,7 @@
         else if (act === "refresh") hardRefresh();
         else if (act === "copy") copyJson();
         else if (act === "stop") cancelResearch();
+        else if (act === "ai-toggle") toggleChatGpt();
         else if (act === "open-screener") openScreener();
       });
     });
@@ -567,6 +587,19 @@
     const txt = JSON.stringify(data, null, 2);
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(txt).catch(() => {});
+    }
+  }
+
+  function toggleChatGpt() {
+    settings.useChatGpt = !(settings.useChatGpt !== false);
+    try {
+      chrome.storage.local.set({ useChatGpt: settings.useChatGpt });
+    } catch (e) {}
+    // Re-run so the panel reflects the new mode immediately.
+    if (state.status === "result") {
+      hardRefresh();
+    } else {
+      render();
     }
   }
 
@@ -628,7 +661,8 @@
         exchange: info.exchange,
         site: info.site,
         pageUrl: location.href,
-        prompt: prompt
+        prompt: prompt,
+        useChatGpt: settings.useChatGpt !== false
       });
       if (p && p.catch) p.catch(() => {});
     } catch (e) {
@@ -708,7 +742,7 @@
 
   function loadSettings() {
     try {
-      chrome.storage.local.get({ demo: false, autoResearch: true, autoOpen: true }, (s) => {
+      chrome.storage.local.get({ demo: false, autoResearch: true, autoOpen: true, useChatGpt: true }, (s) => {
         settings = Object.assign(settings, s);
         hydrate();
       });
@@ -721,6 +755,10 @@
       if (changes.demo) settings.demo = changes.demo.newValue;
       if (changes.autoResearch) settings.autoResearch = changes.autoResearch.newValue;
       if (changes.autoOpen) settings.autoOpen = changes.autoOpen.newValue;
+      if (changes.useChatGpt) {
+        settings.useChatGpt = changes.useChatGpt.newValue;
+        render();
+      }
     });
   } catch (e) {}
 
