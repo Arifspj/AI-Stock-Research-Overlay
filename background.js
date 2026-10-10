@@ -218,6 +218,7 @@ function buildVerified(parsed, quarterly) {
     yoy: changes.yoy || null,
     workingCapital: parsed.workingCapital || null,
     fundamentals: parsed.fundamentals || null,
+    valuation: parsed.valuation || null,
     quarters: q.columns || [],
     sales: series.sales || null,
     netProfit: series.netProfit || null,
@@ -381,6 +382,7 @@ function buildScreenerOnlyPayload(verified, slug, symbol) {
   if (f.cfoPat !== null && f.cfoPat !== undefined) metrics.cfoPat = f.cfoPat;
   if (f.piotroski !== null && f.piotroski !== undefined) metrics.piotroski = f.piotroski;
   if (f.performance) metrics.performance = f.performance;
+  if (verified.valuation && verified.valuation.status) metrics.valuation = verified.valuation;
   if (verified.workingCapital && verified.workingCapital.status) {
     metrics.workingCapital = verified.workingCapital;
   }

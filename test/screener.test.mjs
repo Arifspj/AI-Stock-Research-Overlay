@@ -197,3 +197,44 @@ test("parseFundamentals returns null without annual sections", () => {
   assert.equal(screener.parseFundamentals("no sections here"), null);
   assert.equal(screener.parseFundamentals(""), null);
 });
+
+test("computeValuation blends Graham number and growth-adjusted EPS", () => {
+  // V2RETAIL: LTP 154, P/E 34.4 -> EPS 4.477, Book Value 24.8, YoY NP +12.7%.
+  const v = screener.computeValuation({
+    ltp: 154,
+    pe: 34.4,
+    bookValue: 24.8,
+    growth: "+12.7%"
+  });
+  assert.ok(v);
+  assert.equal(v.eps, 4.48);
+  assert.ok(v.fairValue > 0);
+  assert.ok(["Undervalued", "Fair", "Overvalued"].includes(v.status));
+  assert.ok(v.percent > 0);
+});
+
+test("computeValuation returns null without LTP or P/E", () => {
+  assert.equal(screener.computeValuation({ ltp: 154, pe: null, bookValue: 24.8 }), null);
+  assert.equal(screener.computeValuation({ ltp: 0, pe: 10, bookValue: 24.8 }), null);
+  assert.equal(screener.computeValuation(null), null);
+});
+
+test("computeValuation works with only book value (no growth)", () => {
+  const v = screener.computeValuation({ ltp: 100, pe: 10, bookValue: 50 });
+  assert.ok(v);
+  // EPS = 10, Graham = sqrt(22.5 * 10 * 50) = sqrt(11250) ~ 106.07
+  assert.ok(Math.abs(v.fairValue - 106.07) < 0.1);
+});
+
+test("parseScreener exposes computed valuation", () => {
+  const html =
+    `<ul id="top-ratios">
+       <li><span class="name">Current Price</span><span class="value"><span class="number">154</span></span></li>
+       <li><span class="name">Stock P/E</span><span class="value"><span class="number">34.4</span></span></li>
+       <li><span class="name">Book Value</span><span class="value"><span class="number">24.8</span></span></li>
+     </ul>`;
+  const p = screener.parseScreener(html);
+  assert.ok(p.valuation);
+  assert.equal(p.ratios.bookValue, 24.8);
+  assert.ok(p.valuation.fairValue > 0);
+});

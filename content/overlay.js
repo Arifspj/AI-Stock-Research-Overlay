@@ -486,16 +486,15 @@
           ${action ? `<div class="pill ${escapeHtml(action)}">${escapeHtml(action)}</div>` : ""}
         </div>
 
-        ${screenerOnly
-          ? ""
-          : `<div class="section">
+        ${val.status || typeof val.fairValue === "number"
+          ? `<div class="section">
           <div class="section-title">Valuation${val.status ? " \u00b7 " + escapeHtml(val.status) : ""}${typeof val.percent === "number" ? " (" + escapeHtml(fmtNum(val.percent, 1)) + "%)" : ""}</div>
           <div class="valbar"><div class="mark" style="left:${markLeft}%"></div></div>
           <div class="grid2">
             <div class="card"><div class="k">Fair Value</div><div class="v">\u20b9${escapeHtml(fmtNum(val.fairValue))}</div></div>
             <div class="card"><div class="k">LTP</div><div class="v">\u20b9${escapeHtml(fmtNum(val.ltp !== null && val.ltp !== undefined ? val.ltp : m.ltp))}</div></div>
           </div>
-        </div>`}
+        </div>` : ""}
 
         <div class="section">
           <div class="section-title">Quarter on Quarter (QoQ)</div>
