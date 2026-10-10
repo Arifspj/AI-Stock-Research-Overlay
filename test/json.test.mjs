@@ -97,6 +97,23 @@ test("normalizePayload preserves screenerOnly flag", () => {
   assert.equal(off.screenerOnly, false);
 });
 
+test("normalizePayload preserves workingCapital metrics", () => {
+  const wc = {
+    ccc: { value: 116, prev: 56, delta: 60 },
+    dso: { value: 0, prev: 0, delta: 0 },
+    dio: { value: 195, prev: 140, delta: 55 },
+    dpo: { value: 79, prev: 85, delta: -6 },
+    wcDays: { value: 47, prev: 19, delta: 28 },
+    status: "Worse"
+  };
+  const n = JSONX.normalizePayload({ symbol: "X", metrics: { workingCapital: wc } }, "X");
+  assert.ok(n.metrics.workingCapital);
+  assert.equal(n.metrics.workingCapital.ccc.value, 116);
+  assert.equal(n.metrics.workingCapital.status, "Worse");
+  const none = JSONX.normalizePayload({ symbol: "X", metrics: {} }, "X");
+  assert.equal(none.metrics.workingCapital, null);
+});
+
 // Mirrors chatgpt.js scanning: the prompt schema is valid JSON (its "comments"
 // live inside strings) and has symbol "string", so the answer must be selected
 // by matching the requested symbol.
