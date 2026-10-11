@@ -392,7 +392,8 @@ function buildScreenerOnlyPayload(verified, slug, symbol) {
     source: "screener",
     screenerOnly: true,
     generatedAt: new Date().toISOString(),
-    metrics: metrics
+    metrics: metrics,
+    verdict: SCREENER.computeVerdict(verified)
   };
   if (slug) payload._scrSlug = slug;
   return payload;
@@ -422,6 +423,10 @@ function applyVerified(payload, v) {
 
   if (m.valuation && typeof m.valuation === "object" && v.ltp !== null && v.ltp !== undefined) {
     m.valuation.ltp = v.ltp;
+  }
+  if (!payload.verdict || payload.verdict.badge === "WATCH") {
+    const vd = SCREENER.computeVerdict(v);
+    if (vd) payload.verdict = vd;
   }
   return payload;
 }

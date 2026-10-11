@@ -273,6 +273,79 @@ test("computeValuation keeps Graham blend for healthy cash conversion", () => {
   assert.ok(v.method.indexOf("Graham") !== -1);
 });
 
+const verdictBase = {
+  roce: 30,
+  roe: 25,
+  pe: 20,
+  qoq: { sales: "+5%", profit: "+3%", netProfit: "+4%" },
+  yoy: { sales: "+40%", profit: "+30%", netProfit: "+35%" },
+  valuation: { status: "Fair", percent: 5, fairValue: 200, ltp: 210 },
+  fundamentals: { cfoPat: 0.8, piotroski: 8, debtRatio: 0.15 }
+};
+
+test("computeVerdict grades MULTIBAGGER for high quality + growth + cash", () => {
+  const v = screener.computeVerdict(verdictBase);
+  assert.ok(v);
+  assert.equal(v.badge, "MULTIBAGGER");
+  assert.equal(v.tone, "green");
+});
+
+test("computeVerdict flags CASH TRAP even with strong growth", () => {
+  const v = screener.computeVerdict(Object.assign({}, verdictBase, {
+    fundamentals: { cfoPat: -0.18, piotroski: 5, debtRatio: 0.2 }
+  }));
+  assert.ok(v);
+  assert.equal(v.badge, "CASH TRAP");
+  assert.equal(v.tone, "red");
+});
+
+test("computeVerdict flags HIGH LEVERAGE", () => {
+  const v = screener.computeVerdict(Object.assign({}, verdictBase, {
+    fundamentals: { cfoPat: 0.5, piotroski: 7, debtRatio: 0.75 }
+  }));
+  assert.ok(v);
+  assert.equal(v.badge, "HIGH LEVERAGE");
+  assert.equal(v.tone, "red");
+});
+
+test("computeVerdict flags OVERPRICED", () => {
+  const v = screener.computeVerdict(Object.assign({}, verdictBase, {
+    valuation: { status: "Overvalued", percent: 130, fairValue: 90, ltp: 210 }
+  }));
+  assert.ok(v);
+  assert.equal(v.badge, "OVERPRICED");
+  assert.equal(v.tone, "red");
+});
+
+test("computeVerdict flags SLOWING on negative QoQ sales and profit", () => {
+  const v = screener.computeVerdict(Object.assign({}, verdictBase, {
+    qoq: { sales: "-8%", profit: "-12%", netProfit: "-10%" }
+  }));
+  assert.ok(v);
+  assert.equal(v.badge, "SLOWING");
+  assert.equal(v.tone, "red");
+});
+
+test("computeVerdict returns WATCH for unremarkable data", () => {
+  const v = screener.computeVerdict({
+    roce: 8,
+    roe: 6,
+    pe: 30,
+    qoq: { sales: "0%", profit: "+1%", netProfit: "+1%" },
+    yoy: { sales: "+3%", profit: "+2%", netProfit: "+2%" },
+    valuation: { status: "Fair", percent: 2, fairValue: 100, ltp: 100 },
+    fundamentals: { cfoPat: 0.3, piotroski: 4, debtRatio: 0.5 }
+  });
+  assert.ok(v);
+  assert.equal(v.badge, "WATCH");
+  assert.equal(v.tone, "amber");
+});
+
+test("computeVerdict returns null for empty input", () => {
+  assert.equal(screener.computeVerdict(null), null);
+  assert.equal(screener.computeVerdict(undefined), null);
+});
+
 test("parseScreener exposes computed valuation", () => {
   const html =
     `<ul id="top-ratios">

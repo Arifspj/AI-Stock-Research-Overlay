@@ -116,6 +116,10 @@
 .aibtn { font-size: 9px; font-weight: 800; letter-spacing: .3px; padding: 0 8px; border-radius: 8px; }
 .aibtn.on { color: #16c784; border-color: rgba(22,199,132,.45); background: rgba(22,199,132,.12); }
 .aibtn.off { color: #8b93a7; border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.05); }
+.vbadge { display: inline-block; margin-top: 4px; padding: 3px 8px; border-radius: 7px; font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
+.vbadge.green { color: #0f7a4a; background: #d3f9e5; border: 1px solid #7fe0b4; }
+.vbadge.amber { color: #8a5a00; background: #fff2c9; border: 1px solid #f0c55c; }
+.vbadge.red { color: #b3261e; background: #ffe3e0; border: 1px solid #f2a29b; }
 .sectorrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tailwind { font-size: 10px; font-weight: 800; letter-spacing: .4px; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; }
 .tailwind.yes { background: rgba(22,199,132,.14); color: #16c784; border: 1px solid rgba(22,199,132,.35); }
@@ -472,6 +476,7 @@
         <div>
           <div class="sym">${escapeHtml(payload.symbol || info.symbol)}</div>
           <div class="company">${escapeHtml(payload.name || "")}</div>
+          ${payload.verdict && payload.verdict.badge ? `<div class="vbadge ${escapeHtml(payload.verdict.tone || "amber")}" title="${escapeHtml(payload.verdict.note || "")}">${escapeHtml(payload.verdict.badge)}</div>` : ""}
         </div>
         <div class="spacer"></div>
         <button class="iconbtn openlink" data-act="open-screener" title="Open on Screener.in">${LINK_SVG}</button>
