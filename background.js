@@ -31,6 +31,16 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Resolve with `fallback` if the promise neither settles nor rejects within ms.
+// The underlying work keeps running; we just stop waiting on it so one slow
+// screener.in request can never stall the whole research run.
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    Promise.resolve(promise).catch(() => fallback),
+    sleep(ms).then(() => fallback)
+  ]);
+}
+
 async function setPending(id, value) {
   await chrome.storage.session.set({ [PENDING_PREFIX + id]: value });
 }
@@ -445,22 +455,21 @@ async function onResearchStart(msg, sender) {
   const tabId = sender.tab && sender.tab.id;
   if (tabId === undefined) return;
 
-  // Dedupe: if this tab already has an active research, ignore the duplicate
-  // so we never spawn a second wave of screener tabs.
-  if (researchActive.has(tabId)) {
-    return;
-  }
+  // Supersede any previous run for this tab instead of silently dropping the
+  // new request. A re-injected overlay (fresh requestId) or an explicit retry
+  // must never be left hanging; the stale run's late results are ignored by
+  // the overlay because their requestId no longer matches.
   researchActive.set(tabId, requestId);
 
-  await setPending(requestId, {
-    tabId: tabId,
-    symbol: msg.symbol || null,
-    exchange: msg.exchange || null,
-    site: msg.site || null,
-    createdAt: Date.now()
-  });
-
   try {
+    await setPending(requestId, {
+      tabId: tabId,
+      symbol: msg.symbol || null,
+      exchange: msg.exchange || null,
+      site: msg.site || null,
+      createdAt: Date.now()
+    });
+
     await toOverlay(tabId, {
       type: "RESEARCH_STATUS",
       requestId: requestId,
@@ -473,7 +482,7 @@ async function onResearchStart(msg, sender) {
     let scrSlug = msg.symbol || null;
     let scrId = null;
     try {
-      const resolved = await resolveScreenerSlug(msg.symbol);
+      const resolved = await withTimeout(resolveScreenerSlug(msg.symbol), 12000, null);
       if (resolved && resolved.slug) scrSlug = resolved.slug;
       if (resolved && resolved.id !== null && resolved.id !== undefined) scrId = resolved.id;
     } catch (e) {
@@ -482,14 +491,14 @@ async function onResearchStart(msg, sender) {
 
     let parsed = null;
     try {
-      parsed = await fetchScreener(scrSlug);
+      parsed = await withTimeout(fetchScreener(scrSlug), 25000, null);
     } catch (e) {
       parsed = null;
     }
 
     let quarterly = null;
     try {
-      quarterly = await getQuarterly(scrSlug, sender);
+      quarterly = await withTimeout(getQuarterly(scrSlug, sender), 25000, null);
     } catch (e) {
       quarterly = null;
     }
@@ -558,7 +567,8 @@ async function onResearchStart(msg, sender) {
       error: friendlyError(e)
     });
   } finally {
-    researchActive.delete(tabId);
+    // Only clear our own entry; a newer run for this tab may have superseded us.
+    if (researchActive.get(tabId) === requestId) researchActive.delete(tabId);
   }
 }
 
@@ -611,7 +621,10 @@ async function onResearchCancel(msg, sender) {
       await delPending(id);
     } catch (e) {}
   }
-  if (tabId !== undefined) researchActive.delete(tabId);
+  if (tabId !== undefined) {
+    const cur = researchActive.get(tabId);
+    if (!id || cur === id) researchActive.delete(tabId);
+  }
   try {
     const obj = await chrome.storage.session.get(CHATGPT_TAB_KEY);
     const cgTabId = obj[CHATGPT_TAB_KEY];

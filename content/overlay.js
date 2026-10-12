@@ -142,7 +142,8 @@
     error: null,
     open: false,
     fromCache: false,
-    cachedAt: null
+    cachedAt: null,
+    watchdog: null
   };
   let settings = { demo: false, autoResearch: true, autoOpen: true, useChatGpt: true };
   let host = null;
@@ -626,6 +627,7 @@
   function cancelResearch() {
     const id = state.requestId;
     const wasLoading = state.status === "loading";
+    disarmWatchdog();
     state.requestId = null;
     state.status = "idle";
     state.payload = null;
@@ -642,6 +644,33 @@
     }
     // If we were stuck mid-flow, offer a clean restart.
     if (wasLoading && settings.autoOpen) toggle(true);
+  }
+
+  // Never let the overlay hang forever: if the background stops reporting
+  // progress (screener.in slow/rate-limited, service worker recycled), fail
+  // the run so the user can retry instead of staring at a spinner.
+  const RESEARCH_TIMEOUT_MS = 90000;
+  function disarmWatchdog() {
+    if (state.watchdog) {
+      clearTimeout(state.watchdog);
+      state.watchdog = null;
+    }
+  }
+  function armWatchdog() {
+    disarmWatchdog();
+    state.watchdog = setTimeout(() => {
+      state.watchdog = null;
+      if (state.status !== "loading") return;
+      const id = state.requestId;
+      state.requestId = null;
+      setError("Timed out waiting for screener.in. It may be rate-limiting \u2014 wait a moment and try again.");
+      if (id) {
+        try {
+          const p = chrome.runtime.sendMessage({ type: "RESEARCH_CANCEL", requestId: id });
+          if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
+      }
+    }, RESEARCH_TIMEOUT_MS);
   }
 
   // ---- research flow ----------------------------------------------------
@@ -671,6 +700,7 @@
     state.payload = null;
     state.error = null;
     render();
+    armWatchdog();
 
     const prompt = PROMPT.buildPrompt(info.symbol, info.exchange);
     try {
@@ -691,6 +721,7 @@
   }
 
   function finishWithPayload(rawPayload) {
+    disarmWatchdog();
     state.payload = JSONX.normalizePayload(rawPayload, info.symbol);
     state.status = "result";
     state.error = null;
@@ -711,6 +742,7 @@
   }
 
   function setError(msg) {
+    disarmWatchdog();
     state.status = "error";
     state.error = msg || "Something went wrong.";
     render();
@@ -721,6 +753,7 @@
     if (msg.type === "RESEARCH_STATUS") {
       state.phase = msg.phase || state.phase;
       state.message = msg.message || state.message;
+      armWatchdog();
       render();
     } else if (msg.type === "RESEARCH_RESULT") {
       if (msg.payload) finishWithPayload(msg.payload);
