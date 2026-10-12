@@ -97,6 +97,15 @@ test("normalizePayload preserves screenerOnly flag", () => {
   assert.equal(off.screenerOnly, false);
 });
 
+test("normalizePayload preserves canonical screener slug and numeric id", () => {
+  const out = JSONX.normalizePayload({ symbol: "X", _scrSlug: "GATECH", _scrId: 3178 }, "X");
+  assert.equal(out._scrSlug, "GATECH");
+  assert.equal(out._scrId, "3178");
+  const none = JSONX.normalizePayload({ symbol: "X" }, "X");
+  assert.equal(none._scrSlug, null);
+  assert.equal(none._scrId, null);
+});
+
 test("normalizePayload preserves workingCapital metrics", () => {
   const wc = {
     ccc: { value: 116, prev: 56, delta: 60 },

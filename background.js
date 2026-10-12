@@ -169,8 +169,10 @@ async function parseScreenerUrl(slug) {
   return null;
 }
 
-// Resolve the canonical screener.in company slug (from a site symbol like an
-// ISIN/script-code or short name) using screener's lightweight search API.
+// Resolve the canonical screener.in company slug and numeric id (from a site
+// symbol like an ISIN/script-code or short name) using screener's lightweight
+// search API. The numeric id yields the canonical https://screener.in/company/id/<n>/
+// link, which stays stable even if the company renames.
 async function resolveScreenerSlug(symbol) {
   if (!symbol) return null;
   const html = await fetchHtml(
@@ -180,9 +182,12 @@ async function resolveScreenerSlug(symbol) {
   try {
     const list = JSON.parse(html);
     if (Array.isArray(list) && list.length) {
-      const first = list[0] && list[0].url ? String(list[0].url) : "";
-      const m = first.match(/\/company\/([^/]+)\/?$/);
-      if (m) return decodeURIComponent(m[1]);
+      const hit = list[0] || {};
+      const id = hit.id !== null && hit.id !== undefined ? hit.id : null;
+      const url = hit.url ? String(hit.url) : "";
+      const m = url.match(/\/company\/([^/]+)\/?$/);
+      const slug = m ? decodeURIComponent(m[1]) : null;
+      if (slug) return { slug: slug, id: id };
     }
   } catch (e) {
     /* ignore */
@@ -352,7 +357,7 @@ async function getQuarterly(slug, sender) {
 
 // Force the scraped ground-truth numbers onto the model's payload.
 // Build a ground-truth-only payload when the user disables ChatGPT research.
-function buildScreenerOnlyPayload(verified, slug, symbol) {
+function buildScreenerOnlyPayload(verified, slug, symbol, id) {
   const qoq = verified.qoq || {};
   const yoy = verified.yoy || {};
   const badges = [];
@@ -396,6 +401,7 @@ function buildScreenerOnlyPayload(verified, slug, symbol) {
     verdict: SCREENER.computeVerdict(verified)
   };
   if (slug) payload._scrSlug = slug;
+  if (id !== null && id !== undefined) payload._scrId = id;
   return payload;
 }
 
@@ -459,12 +465,14 @@ async function onResearchStart(msg, sender) {
       message: "Fetching data from screener.in\u2026"
     });
 
-    // Resolve the canonical screener slug so both the ratio scrape and the
+    // Resolve the canonical screener slug/id so both the ratio scrape and the
     // quarterly tab use a URL that actually exists on screener.in.
     let scrSlug = msg.symbol || null;
+    let scrId = null;
     try {
       const resolved = await resolveScreenerSlug(msg.symbol);
-      if (resolved) scrSlug = resolved;
+      if (resolved && resolved.slug) scrSlug = resolved.slug;
+      if (resolved && resolved.id !== null && resolved.id !== undefined) scrId = resolved.id;
     } catch (e) {
       /* fall back to the raw symbol */
     }
@@ -489,6 +497,7 @@ async function onResearchStart(msg, sender) {
     if (pending) {
       pending.verified = verified;
       pending.slug = scrSlug;
+      pending.id = scrId;
       await setPending(requestId, pending);
     }
 
@@ -503,7 +512,7 @@ async function onResearchStart(msg, sender) {
       await toOverlay(tabId, {
         type: "RESEARCH_RESULT",
         requestId: requestId,
-        payload: buildScreenerOnlyPayload(verified, scrSlug, msg.symbol)
+        payload: buildScreenerOnlyPayload(verified, scrSlug, msg.symbol, scrId)
       });
       await delPending(requestId);
       return;
@@ -574,10 +583,11 @@ async function onChatGptResult(msg) {
     if (msg.payload && pending.verified) {
       applyVerified(msg.payload, pending.verified);
     }
-    if (msg.payload && pending.slug) {
-      // Remember the canonical screener slug so the overlay's link button
+    if (msg.payload && (pending.slug || pending.id !== null && pending.id !== undefined)) {
+      // Remember the canonical screener slug/id so the overlay's link button
       // opens the right page even when the site symbol is an ISIN/script code.
-      msg.payload._scrSlug = pending.slug;
+      if (pending.slug) msg.payload._scrSlug = pending.slug;
+      if (pending.id !== null && pending.id !== undefined) msg.payload._scrId = pending.id;
     }
     await toOverlay(pending.tabId, {
       type: "RESEARCH_RESULT",

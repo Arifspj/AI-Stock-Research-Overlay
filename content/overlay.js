@@ -159,6 +159,18 @@
     return "https://" + SCREENER_DOMAIN + "/company/" + encodeURIComponent(String(symbol || "")) + "/";
   }
 
+  function screenerCanonicalUrl(payload) {
+    // Prefer the canonical numeric-id link (stable across renames), then the
+    // resolved slug, then the raw symbol as a last resort.
+    const id = payload && payload._scrId;
+    if (id !== null && id !== undefined && String(id) !== "") {
+      return "https://" + SCREENER_DOMAIN + "/company/id/" + encodeURIComponent(String(id)) + "/";
+    }
+    const slug = payload && payload._scrSlug;
+    if (slug) return screenerUrl(slug);
+    return null;
+  }
+
   function uid() {
     if (self.crypto && self.crypto.randomUUID) return self.crypto.randomUUID();
     return "req-" + Date.now() + "-" + Math.random().toString(16).slice(2);
@@ -578,8 +590,12 @@
   }
 
   function openScreener() {
+    const canonical = screenerCanonicalUrl(state.payload);
+    if (canonical) {
+      openUrl(canonical);
+      return;
+    }
     const sym =
-      (state.payload && state.payload._scrSlug) ||
       (state.payload && state.payload.symbol) ||
       info.symbol;
     openUrl(screenerUrl(sym));
