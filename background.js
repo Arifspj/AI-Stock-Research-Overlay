@@ -185,7 +185,10 @@ async function resolveScreenerSlug(symbol) {
       const hit = list[0] || {};
       const id = hit.id !== null && hit.id !== undefined ? hit.id : null;
       const url = hit.url ? String(hit.url) : "";
-      const m = url.match(/\/company\/([^/]+)\/?$/);
+      // Capture the first path segment after /company/. Some companies use a
+      // numeric slug and/or a trailing /consolidated/ (e.g. Black Opal:
+      // "/company/544972/consolidated/"), so we must not require it at the end.
+      const m = url.match(/\/company\/([^/]+)/);
       const slug = m ? decodeURIComponent(m[1]) : null;
       if (slug) return { slug: slug, id: id };
     }
@@ -221,9 +224,9 @@ function buildVerified(parsed, quarterly) {
     roe: r.roe !== undefined ? r.roe : null,
     qoq: changes.qoq || null,
     yoy: changes.yoy || null,
-    workingCapital: parsed.workingCapital || null,
-    fundamentals: parsed.fundamentals || null,
-    valuation: parsed.valuation || null,
+    workingCapital: parsed && parsed.workingCapital ? parsed.workingCapital : null,
+    fundamentals: parsed && parsed.fundamentals ? parsed.fundamentals : null,
+    valuation: parsed && parsed.valuation ? parsed.valuation : null,
     quarters: q.columns || [],
     sales: series.sales || null,
     netProfit: series.netProfit || null,
