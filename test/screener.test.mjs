@@ -195,6 +195,15 @@ test("parseScreener carries fundamentals", () => {
   assert.equal(p.fundamentals.performance, "Good");
 });
 
+test("parseFundamentals computes annual YoY growth (fallback for recent listings)", () => {
+  const f = screener.parseFundamentals(ANNUAL_HTML);
+  assert.ok(f);
+  // Sales 3060 -> 3428 = +12.0%, Net Profit 163 -> 177 = +8.6%, OP 475 -> 515 = +8.4%
+  assert.equal(f.salesGrowth, "+12.0%");
+  assert.equal(f.profitGrowth, "+8.6%");
+  assert.equal(f.opGrowth, "+8.4%");
+});
+
 test("parseFundamentals flags negative cash conversion and high debt", () => {
   const f = screener.parseFundamentals(ANNUAL_HTML);
   assert.ok(f);

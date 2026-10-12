@@ -62,6 +62,15 @@ test("normalizePayload fills defaults and coerces numbers", () => {
   assert.equal(out.metrics.valuation.ltp, 1234.5);
 });
 
+test("normalizePayload preserves the yoyAnnual fallback flag", () => {
+  const raw = { symbol: "MONEYVIEW", metrics: { yoy: { sales: "+43.3%" }, yoyAnnual: true } };
+  const out = JSONX.normalizePayload(raw, "MONEYVIEW");
+  assert.equal(out.metrics.yoyAnnual, true);
+  assert.equal(out.metrics.yoy.sales, "+43.3%");
+  const off = JSONX.normalizePayload({ symbol: "X", metrics: {} }, "X");
+  assert.equal(off.metrics.yoyAnnual, false);
+});
+
 test("normalizePayload preserves qualitative fields", () => {
   const raw = {
     symbol: "FONEBOX",

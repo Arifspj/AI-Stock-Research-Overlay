@@ -514,23 +514,40 @@
           </div>
         </div>` : ""}
 
-        <div class="section">
+        ${(() => {
+          const q = m.qoq || {};
+          const y = m.yoy || {};
+          const qHas = !!(q.netProfit || q.sales || q.profit);
+          const yHas = !!(y.netProfit || y.sales || y.profit);
+          const yAnnual = m.yoyAnnual === true;
+          const noQuarterly =
+            '<div class="muted">Screener.in has no quarterly results for this stock yet (recent listing).</div>';
+          const qoqSec = `<div class="section">
           <div class="section-title">Quarter on Quarter (QoQ)</div>
-          <div class="grid3">
-            ${deltaCard("Net Profit", m.qoq && m.qoq.netProfit)}
-            ${deltaCard("Sales", m.qoq && m.qoq.sales)}
-            ${deltaCard("Profit", m.qoq && m.qoq.profit)}
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">Year on Year (YoY)</div>
-          <div class="grid3">
-            ${deltaCard("Net Profit", m.yoy && m.yoy.netProfit)}
-            ${deltaCard("Sales", m.yoy && m.yoy.sales)}
-            ${deltaCard("Profit", m.yoy && m.yoy.profit)}
-          </div>
-        </div>
+          ${
+            qHas
+              ? `<div class="grid3">
+            ${deltaCard("Net Profit", q.netProfit)}
+            ${deltaCard("Sales", q.sales)}
+            ${deltaCard("Profit", q.profit)}
+          </div>`
+              : noQuarterly
+          }
+        </div>`;
+          const yoySec = `<div class="section">
+          <div class="section-title">Year on Year (YoY)${yAnnual ? " \u00b7 annual (no quarterly data)" : ""}</div>
+          ${
+            yHas
+              ? `<div class="grid3">
+            ${deltaCard("Net Profit", y.netProfit)}
+            ${deltaCard("Sales", y.sales)}
+            ${deltaCard("Profit", y.profit)}
+          </div>`
+              : noQuarterly
+          }
+        </div>`;
+          return qoqSec + yoySec;
+        })()}
 
         <div class="section">
           <div class="section-title">Key Metrics</div>

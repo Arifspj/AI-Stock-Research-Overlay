@@ -397,6 +397,13 @@ function buildScreenerOnlyPayload(verified, slug, symbol, id) {
     yoy: { sales: yoy.sales || null, netProfit: yoy.netProfit || null, profit: yoy.profit || null }
   };
   const f = verified.fundamentals || {};
+  // Fallback for very recent listings: screener has annual data but no
+  // quarterly table yet, so fill YoY from the latest annual vs previous year.
+  const yoyEmpty = !(metrics.yoy.sales || metrics.yoy.netProfit || metrics.yoy.profit);
+  if (yoyEmpty && (f.salesGrowth || f.profitGrowth)) {
+    metrics.yoy = { sales: f.salesGrowth || null, netProfit: f.profitGrowth || null, profit: f.opGrowth || null };
+    metrics.yoyAnnual = true;
+  }
   if (f.cfoPat !== null && f.cfoPat !== undefined) metrics.cfoPat = f.cfoPat;
   if (f.piotroski !== null && f.piotroski !== undefined) metrics.piotroski = f.piotroski;
   if (f.performance) metrics.performance = f.performance;
@@ -439,6 +446,15 @@ function applyVerified(payload, v) {
   };
   if (v.qoq) m.qoq = merge(m.qoq, v.qoq);
   if (v.yoy) m.yoy = merge(m.yoy, v.yoy);
+
+  // Same annual fallback as the screener-only path: if there is no quarterly
+  // YoY, surface the annual growth we scraped so the card is not empty.
+  const f = v.fundamentals || {};
+  const y = m.yoy || {};
+  if (!(y.sales || y.netProfit || y.profit) && (f.salesGrowth || f.profitGrowth)) {
+    m.yoy = { sales: f.salesGrowth || null, netProfit: f.profitGrowth || null, profit: f.opGrowth || null };
+    m.yoyAnnual = true;
+  }
 
   if (m.valuation && typeof m.valuation === "object" && v.ltp !== null && v.ltp !== undefined) {
     m.valuation.ltp = v.ltp;
